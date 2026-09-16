@@ -1,4 +1,5 @@
 const WebSocket = require('ws');
+const { createAgentMessage, isValidAgentMessage } = require('./schema');
 
 const PORT = process.env.PORT || 8080;
 const wss = new WebSocket.Server({ port: PORT });
@@ -9,8 +10,21 @@ wss.on('connection', (socket, req) => {
   console.log('Client connected:', req.socket.remoteAddress);
 
   socket.on('message', (data) => {
-    console.log('Received:', data.toString());
-    // Placeholder — real message schema (id, x, y, z, timestamp) comes Day 2
+    let parsed;
+    try {
+      parsed = JSON.parse(data.toString());
+    } catch (err) {
+      console.error('Invalid JSON received:', err.message);
+      return;
+    }
+
+    if (!isValidAgentMessage(parsed)) {
+      console.warn('Message does not match agent schema, ignoring:', parsed);
+      return;
+    }
+
+    console.log('Valid agent update:', parsed);
+    // Later: broadcast this to other connected clients (Three.js frontend etc.)
   });
 
   socket.on('close', () => {
@@ -21,7 +35,9 @@ wss.on('connection', (socket, req) => {
     console.error('Socket error:', err.message);
   });
 
-  socket.send(JSON.stringify({ type: 'connected', message: 'WebSocket server ready' }));
+  // Send a test payload using the schema, so we can verify shape end-to-end
+  const testMessage = createAgentMessage({ id: 'drone-1', x: 0, y: 0, z: 0 });
+  socket.send(JSON.stringify(testMessage));
 });
 
 wss.on('error', (err) => {
