@@ -73,6 +73,48 @@ class ExplorationMap:
 
         return after - before
 
+    def mark_explored_per_agent(
+        self,
+        agent_positions: dict[str, np.ndarray],
+        radius: float = 2.0,
+    ) -> tuple[dict[str, int], int]:
+        """Mark explored cells for each agent simultaneously.
+
+        Returns a tuple of:
+          - dict mapping agent_id to newly explored cell count attributed to that agent
+          - total new cells marked across the entire swarm
+
+        Symmetrically attributes newly covered cells: if multiple agents cover
+        the same previously-unexplored cell in the same timestep, all contributing
+        agents receive credit, avoiding order-dependent race conditions.
+        """
+        cell_radius = int(np.ceil(radius / self.cell_size))
+        agent_new_cells: dict[str, int] = {
+            agent_id: 0 for agent_id in agent_positions
+        }
+        cells_to_mark: set[tuple[int, int]] = set()
+
+        for agent_id, position in agent_positions.items():
+            cell = self._cell(np.asarray(position))
+            if cell is None:
+                continue
+
+            center_x, center_y = cell
+            for dx in range(-cell_radius, cell_radius + 1):
+                for dy in range(-cell_radius, cell_radius + 1):
+                    x = center_x + dx
+                    y = center_y + dy
+                    if 0 <= x < self.width and 0 <= y < self.height:
+                        if not self.grid[x, y]:
+                            agent_new_cells[agent_id] += 1
+                            cells_to_mark.add((x, y))
+
+        for x, y in cells_to_mark:
+            self.grid[x, y] = True
+
+        total_new = len(cells_to_mark)
+        return agent_new_cells, total_new
+
     @property
     def explored_fraction(self) -> float:
         return float(self.grid.mean())
