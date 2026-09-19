@@ -1,8 +1,11 @@
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+from typing import Any
 
 
 @dataclass
 class RewardConfig:
+    """Weights used to calculate one agent's reward."""
+
     new_area: float = 1.0
     target_found: float = 20.0
     drone_collision: float = -100.0
@@ -10,6 +13,147 @@ class RewardConfig:
     boundary_violation: float = -10.0
     repeated_area: float = -0.1
     step_cost: float = -0.01
+
+    def __post_init__(self) -> None:
+        if self.new_area < 0:
+            raise ValueError(
+                "New-area reward must not be negative."
+            )
+
+        if self.target_found < 0:
+            raise ValueError(
+                "Target-found reward must not be negative."
+            )
+
+        if self.drone_collision > 0:
+            raise ValueError(
+                "Drone-collision penalty must be zero or negative."
+            )
+
+        if self.obstacle_collision > 0:
+            raise ValueError(
+                "Obstacle-collision penalty must be zero or negative."
+            )
+
+        if self.boundary_violation > 0:
+            raise ValueError(
+                "Boundary penalty must be zero or negative."
+            )
+
+        if self.repeated_area > 0:
+            raise ValueError(
+                "Repeated-area penalty must be zero or negative."
+            )
+
+        if self.step_cost > 0:
+            raise ValueError(
+                "Step cost must be zero or negative."
+            )
+
+    def to_dict(self) -> dict[str, float]:
+        """Return configuration as a JSON-friendly dictionary."""
+        return {
+            key: float(value)
+            for key, value in asdict(self).items()
+        }
+
+
+@dataclass
+class RewardBreakdown:
+    """Individual reward components and their total."""
+
+    new_area: float = 0.0
+    target_found: float = 0.0
+    drone_collision: float = 0.0
+    obstacle_collision: float = 0.0
+    boundary_violation: float = 0.0
+    repeated_area: float = 0.0
+    step_cost: float = 0.0
+
+    @property
+    def total(self) -> float:
+        """Return the sum of all reward components."""
+        return float(
+            self.new_area
+            + self.target_found
+            + self.drone_collision
+            + self.obstacle_collision
+            + self.boundary_violation
+            + self.repeated_area
+            + self.step_cost
+        )
+
+    def to_dict(self) -> dict[str, float]:
+        """Return reward components and total as a dictionary."""
+        return {
+            "new_area": float(self.new_area),
+            "target_found": float(self.target_found),
+            "drone_collision": float(
+                self.drone_collision
+            ),
+            "obstacle_collision": float(
+                self.obstacle_collision
+            ),
+            "boundary_violation": float(
+                self.boundary_violation
+            ),
+            "repeated_area": float(
+                self.repeated_area
+            ),
+            "step_cost": float(self.step_cost),
+            "total": float(self.total),
+        }
+
+
+def calculate_reward_breakdown(
+    new_cells: int,
+    previously_explored: bool,
+    target_found: bool,
+    drone_collision: bool,
+    obstacle_collision: bool,
+    boundary_violation: bool,
+    config: RewardConfig | None = None,
+) -> RewardBreakdown:
+    """Calculate all reward components for one agent."""
+    config = config or RewardConfig()
+
+    if not isinstance(new_cells, int):
+        raise TypeError("new_cells must be an integer.")
+
+    if new_cells < 0:
+        raise ValueError("new_cells must not be negative.")
+
+    breakdown = RewardBreakdown(
+        new_area=float(new_cells) * config.new_area,
+        target_found=(
+            config.target_found
+            if target_found
+            else 0.0
+        ),
+        drone_collision=(
+            config.drone_collision
+            if drone_collision
+            else 0.0
+        ),
+        obstacle_collision=(
+            config.obstacle_collision
+            if obstacle_collision
+            else 0.0
+        ),
+        boundary_violation=(
+            config.boundary_violation
+            if boundary_violation
+            else 0.0
+        ),
+        repeated_area=(
+            config.repeated_area
+            if previously_explored and new_cells == 0
+            else 0.0
+        ),
+        step_cost=config.step_cost,
+    )
+
+    return breakdown
 
 
 def calculate_reward(
@@ -21,35 +165,25 @@ def calculate_reward(
     obstacle_collision: bool,
     boundary_violation: bool,
     config: RewardConfig | None = None,
-) -> tuple[float, dict]:
-    del agent_id
+) -> tuple[float, dict[str, Any]]:
+    """Return total reward and component details.
 
-    config = config or RewardConfig()
+    The agent_id argument is retained for compatibility with the
+    environment interface.
+    """
+    if not agent_id:
+        raise ValueError("agent_id must not be empty.")
 
-    components = {
-        "new_area": new_cells * config.new_area,
-        "target_found": (
-            config.target_found if target_found else 0.0
-        ),
-        "drone_collision": (
-            config.drone_collision if drone_collision else 0.0
-        ),
-        "obstacle_collision": (
-            config.obstacle_collision
-            if obstacle_collision
-            else 0.0
-        ),
-        "boundary_violation": (
-            config.boundary_violation
-            if boundary_violation
-            else 0.0
-        ),
-        "repeated_area": (
-            config.repeated_area
-            if previously_explored and new_cells == 0
-            else 0.0
-        ),
-        "step_cost": config.step_cost,
-    }
+    breakdown = calculate_reward_breakdown(
+        new_cells=new_cells,
+        previously_explored=previously_explored,
+        target_found=target_found,
+        drone_collision=drone_collision,
+        obstacle_collision=obstacle_collision,
+        boundary_violation=boundary_violation,
+        config=config,
+    )
 
-    return float(sum(components.values())), components
+    details = breakdown.to_dict()
+
+    return float(breakdown.total), details
