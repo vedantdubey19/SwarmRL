@@ -7,11 +7,15 @@ class RewardConfig:
     """Weights used to calculate one agent's reward."""
 
     new_area: float = 1.0
-    target_found: float = 20.0
-    drone_collision: float = -100.0
-    obstacle_collision: float = -50.0
-    boundary_violation: float = -10.0
-    repeated_area: float = -0.1
+    team_new_area: float = 0.05
+    target_found: float = 10.0
+    team_target_found: float = 0.2
+    drone_collision: float = -5.0
+    obstacle_collision: float = -5.0
+    boundary_violation: float = -5.0
+    repeated_area: float = 0.0
+    proximity_threshold: float = 3.0
+    proximity_penalty: float = -0.5
     step_cost: float = -0.01
 
     def __post_init__(self) -> None:
@@ -20,9 +24,19 @@ class RewardConfig:
                 "New-area reward must not be negative."
             )
 
+        if self.team_new_area < 0:
+            raise ValueError(
+                "Team new-area reward must not be negative."
+            )
+
         if self.target_found < 0:
             raise ValueError(
                 "Target-found reward must not be negative."
+            )
+
+        if self.team_target_found < 0:
+            raise ValueError(
+                "Team target-found reward must not be negative."
             )
 
         if self.drone_collision > 0:
@@ -45,6 +59,16 @@ class RewardConfig:
                 "Repeated-area penalty must be zero or negative."
             )
 
+        if self.proximity_threshold < 0:
+            raise ValueError(
+                "Proximity threshold must not be negative."
+            )
+
+        if self.proximity_penalty > 0:
+            raise ValueError(
+                "Proximity penalty must be zero or negative."
+            )
+
         if self.step_cost > 0:
             raise ValueError(
                 "Step cost must be zero or negative."
@@ -63,11 +87,14 @@ class RewardBreakdown:
     """Individual reward components and their total."""
 
     new_area: float = 0.0
+    team_new_area: float = 0.0
     target_found: float = 0.0
+    team_target_found: float = 0.0
     drone_collision: float = 0.0
     obstacle_collision: float = 0.0
     boundary_violation: float = 0.0
     repeated_area: float = 0.0
+    proximity_penalty: float = 0.0
     step_cost: float = 0.0
 
     @property
@@ -75,11 +102,14 @@ class RewardBreakdown:
         """Return the sum of all reward components."""
         return float(
             self.new_area
+            + self.team_new_area
             + self.target_found
+            + self.team_target_found
             + self.drone_collision
             + self.obstacle_collision
             + self.boundary_violation
             + self.repeated_area
+            + self.proximity_penalty
             + self.step_cost
         )
 
@@ -87,19 +117,14 @@ class RewardBreakdown:
         """Return reward components and total as a dictionary."""
         return {
             "new_area": float(self.new_area),
+            "team_new_area": float(self.team_new_area),
             "target_found": float(self.target_found),
-            "drone_collision": float(
-                self.drone_collision
-            ),
-            "obstacle_collision": float(
-                self.obstacle_collision
-            ),
-            "boundary_violation": float(
-                self.boundary_violation
-            ),
-            "repeated_area": float(
-                self.repeated_area
-            ),
+            "team_target_found": float(self.team_target_found),
+            "drone_collision": float(self.drone_collision),
+            "obstacle_collision": float(self.obstacle_collision),
+            "boundary_violation": float(self.boundary_violation),
+            "repeated_area": float(self.repeated_area),
+            "proximity_penalty": float(self.proximity_penalty),
             "step_cost": float(self.step_cost),
             "total": float(self.total),
         }
@@ -113,6 +138,9 @@ def calculate_reward_breakdown(
     obstacle_collision: bool,
     boundary_violation: bool,
     config: RewardConfig | None = None,
+    team_cells: int = 0,
+    team_target_found: bool = False,
+    min_neighbor_dist: float | None = None,
 ) -> RewardBreakdown:
     """Calculate all reward components for one agent."""
     config = config or RewardConfig()
@@ -123,11 +151,38 @@ def calculate_reward_breakdown(
     if new_cells < 0:
         raise ValueError("new_cells must not be negative.")
 
+    if not isinstance(team_cells, int):
+        raise TypeError("team_cells must be an integer.")
+
+    if team_cells < 0:
+        raise ValueError("team_cells must not be negative.")
+
+    if min_neighbor_dist is not None:
+        if not isinstance(min_neighbor_dist, (int, float)):
+            raise TypeError("min_neighbor_dist must be a number.")
+        if min_neighbor_dist < 0:
+            raise ValueError("min_neighbor_dist must not be negative.")
+
+    prox_cost = 0.0
+    if (
+        min_neighbor_dist is not None
+        and min_neighbor_dist < config.proximity_threshold
+    ):
+        prox_cost = config.proximity_penalty * (
+            config.proximity_threshold - float(min_neighbor_dist)
+        )
+
     breakdown = RewardBreakdown(
         new_area=float(new_cells) * config.new_area,
+        team_new_area=float(team_cells) * config.team_new_area,
         target_found=(
             config.target_found
             if target_found
+            else 0.0
+        ),
+        team_target_found=(
+            config.team_target_found
+            if team_target_found
             else 0.0
         ),
         drone_collision=(
@@ -150,6 +205,7 @@ def calculate_reward_breakdown(
             if previously_explored and new_cells == 0
             else 0.0
         ),
+        proximity_penalty=prox_cost,
         step_cost=config.step_cost,
     )
 
@@ -165,6 +221,9 @@ def calculate_reward(
     obstacle_collision: bool,
     boundary_violation: bool,
     config: RewardConfig | None = None,
+    team_cells: int = 0,
+    team_target_found: bool = False,
+    min_neighbor_dist: float | None = None,
 ) -> tuple[float, dict[str, Any]]:
     """Return total reward and component details.
 
@@ -182,6 +241,9 @@ def calculate_reward(
         obstacle_collision=obstacle_collision,
         boundary_violation=boundary_violation,
         config=config,
+        team_cells=team_cells,
+        team_target_found=team_target_found,
+        min_neighbor_dist=min_neighbor_dist,
     )
 
     details = breakdown.to_dict()
