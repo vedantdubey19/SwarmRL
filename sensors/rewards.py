@@ -7,11 +7,15 @@ class RewardConfig:
     """Weights used to calculate one agent's reward."""
 
     new_area: float = 1.0
-    target_found: float = 20.0
-    drone_collision: float = -100.0
-    obstacle_collision: float = -50.0
-    boundary_violation: float = -10.0
-    repeated_area: float = -0.1
+    team_new_area: float = 0.05
+    target_found: float = 10.0
+    team_target_found: float = 0.2
+    drone_collision: float = -5.0
+    obstacle_collision: float = -5.0
+    boundary_violation: float = -5.0
+    repeated_area: float = 0.0
+    proximity_threshold: float = 3.0
+    proximity_penalty: float = -0.5
     step_cost: float = -0.01
 
     def __post_init__(self) -> None:

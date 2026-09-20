@@ -169,6 +169,7 @@ def test_reward_details_are_json_serializable():
         drone_collision=False,
         obstacle_collision=False,
         boundary_violation=False,
+        config=config,
     )
 
     encoded = json.dumps(
