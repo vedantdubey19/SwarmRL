@@ -4,7 +4,8 @@
   "description": "WebSocket server for SwarmRL real-time drone data streaming",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test tests/schema.test.js"
   },
   "dependencies": {
     "ws": "^8.18.0"
