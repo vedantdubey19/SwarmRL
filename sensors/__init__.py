@@ -7,7 +7,11 @@ from sensors.events import (
     detect_targets_found,
     distance_between,
 )
-from sensors.exploration import ExplorationMap
+from sensors.exploration import (
+    ExplorationConfig,
+    ExplorationMap,
+    ExplorationSummary,
+)
 from sensors.observation import (
     SensorObservation,
     build_sensor_observation,
@@ -23,7 +27,9 @@ from sensors.sensors import ConeSensor, SensorConfig
 __all__ = [
     "ConeSensor",
     "EventConfig",
+    "ExplorationConfig",
     "ExplorationMap",
+    "ExplorationSummary",
     "RewardBreakdown",
     "RewardConfig",
     "SensorConfig",
