@@ -5,6 +5,8 @@ def build_training_config():
     config = (
         PPOConfig()
         .framework("torch")
+        .debugging(log_level="INFO")
+        .checkpointing()
         .env_runners(num_env_runners=0)
     )
 
