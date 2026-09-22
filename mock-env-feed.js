@@ -1,5 +1,4 @@
 const WebSocket = require('ws');
-const { createAgentMessage } = require('./schema');
 
 const NUM_AGENTS = 50;
 const STEP_INTERVAL_MS = 200;
@@ -32,16 +31,28 @@ function stepEnv() {
 }
 
 ws.on('open', () => {
-  console.log(`Mock env feed connected. Wiring per-step coordinates every ${STEP_INTERVAL_MS}ms`);
+  console.log(`Mock env feed connected. Streaming batched steps every ${STEP_INTERVAL_MS}ms`);
   resetEnv();
 
   setInterval(() => {
     const updatedAgents = stepEnv();
-    updatedAgents.forEach(agent => {
-      const msg = createAgentMessage(agent);
-      ws.send(JSON.stringify(msg));
-    });
-    console.log(`Step ${stepCount}: sent ${updatedAgents.length} agent positions`);
+
+    // Batch all agents into a single message instead of separate sends per agent
+    const batchMsg = {
+      type: 'batch_update',
+      step: stepCount,
+      timestamp: Date.now(),
+      agents: updatedAgents.map(a => ({
+        id: a.id,
+        x: Math.round(a.x * 100) / 100,
+        y: Math.round(a.y * 100) / 100,
+        z: Math.round(a.z * 100) / 100,
+      })),
+    };
+
+    const serialized = JSON.stringify(batchMsg);
+    ws.send(serialized);
+    console.log(`Step ${stepCount}: sent 1 batched message (${serialized.length} bytes, ${updatedAgents.length} agents)`);
   }, STEP_INTERVAL_MS);
 });
 
