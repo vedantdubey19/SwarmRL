@@ -22,6 +22,13 @@ wss.on('connection', (socket, req) => {
       return;
     }
 
+    // Handle batched per-step updates (Day 8 optimization)
+    if (parsed.type === 'batch_update') {
+      console.log(`Received batch: step ${parsed.step}, ${parsed.agents.length} agents`);
+      return;
+    }
+
+    // Fallback: single-agent message validation (Day 2/3 behavior)
     if (!isValidAgentMessage(parsed)) {
       console.warn('Message does not match agent schema, ignoring:', parsed);
       socket.send(JSON.stringify({ type: 'error', message: 'Message failed schema validation' }));
@@ -47,7 +54,6 @@ wss.on('connection', (socket, req) => {
   }
 });
 
-// Handle server-level errors (e.g. port already in use)
 wss.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
     console.error(`Port ${PORT} is already in use. Is another instance running?`);
@@ -57,7 +63,6 @@ wss.on('error', (err) => {
   process.exit(1);
 });
 
-// Catch anything unhandled so the process doesn't silently die
 process.on('uncaughtException', (err) => {
   console.error('Uncaught exception:', err);
 });
