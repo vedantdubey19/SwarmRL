@@ -7,7 +7,7 @@ def build_training_config():
         .framework("torch")
         .debugging(log_level="INFO")
         .checkpointing()
-        .env_runners(num_env_runners=0)
+        .env_runners(num_env_runners=2)
     )
 
     return config
