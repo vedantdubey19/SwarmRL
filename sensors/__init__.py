@@ -29,6 +29,10 @@ from sensors.rewards import (
     calculate_reward_breakdown,
 )
 from sensors.sensors import ConeSensor, SensorConfig
+from sensors.stream import (
+    StreamClosedError,
+    SwarmPayloadStream,
+)
 
 __all__ = [
     "ConeSensor",
@@ -40,6 +44,8 @@ __all__ = [
     "RewardConfig",
     "SensorConfig",
     "SensorObservation",
+    "StreamClosedError",
+    "SwarmPayloadStream",
     "build_event_flags",
     "build_sensor_payload",
     "build_sensor_observation",
