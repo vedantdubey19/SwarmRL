@@ -1,3 +1,10 @@
+# Node
 node_modules/
 .env
 *.log
+
+# Python
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
