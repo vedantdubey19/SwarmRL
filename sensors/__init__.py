@@ -12,6 +12,13 @@ from sensors.exploration import (
     ExplorationMap,
     ExplorationSummary,
 )
+from sensors.metrics import (
+    AgentMetrics,
+    MetricsTracker,
+    SwarmMetrics,
+    build_agent_metrics,
+    metrics_from_payload,
+)
 from sensors.observation import (
     SensorObservation,
     build_sensor_observation,
@@ -35,17 +42,21 @@ from sensors.stream import (
 )
 
 __all__ = [
+    "AgentMetrics",
     "ConeSensor",
     "EventConfig",
     "ExplorationConfig",
     "ExplorationMap",
     "ExplorationSummary",
+    "MetricsTracker",
     "RewardBreakdown",
     "RewardConfig",
     "SensorConfig",
     "SensorObservation",
     "StreamClosedError",
+    "SwarmMetrics",
     "SwarmPayloadStream",
+    "build_agent_metrics",
     "build_event_flags",
     "build_sensor_payload",
     "build_sensor_observation",
@@ -58,5 +69,6 @@ __all__ = [
     "detect_targets_found",
     "distance_between",
     "ensure_json_serializable",
+    "metrics_from_payload",
     "validate_event_flags",
 ]
