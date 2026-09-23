@@ -2,11 +2,12 @@ const WebSocket = require('ws');
 
 const NUM_AGENTS = 50;
 const STEP_INTERVAL_MS = 200;
+const RECONNECT_DELAY_MS = 2000;
 
-const ws = new WebSocket('ws://localhost:8080');
-
+let ws;
 let agents = [];
 let stepCount = 0;
+let stepTimer = null;
 
 function resetEnv() {
   stepCount = 0;
@@ -30,31 +31,40 @@ function stepEnv() {
   return agents;
 }
 
-ws.on('open', () => {
-  console.log(`Mock env feed connected. Streaming batched steps every ${STEP_INTERVAL_MS}ms`);
-  resetEnv();
+function connect() {
+  ws = new WebSocket('ws://localhost:8080');
 
-  setInterval(() => {
-    const updatedAgents = stepEnv();
+  ws.on('open', () => {
+    console.log('Mock env feed connected.');
+    resetEnv();
 
-    // Batch all agents into a single message instead of separate sends per agent
-    const batchMsg = {
-      type: 'batch_update',
-      step: stepCount,
-      timestamp: Date.now(),
-      agents: updatedAgents.map(a => ({
-        id: a.id,
-        x: Math.round(a.x * 100) / 100,
-        y: Math.round(a.y * 100) / 100,
-        z: Math.round(a.z * 100) / 100,
-      })),
-    };
+    stepTimer = setInterval(() => {
+      const updatedAgents = stepEnv();
+      const batchMsg = {
+        type: 'batch_update',
+        step: stepCount,
+        timestamp: Date.now(),
+        agents: updatedAgents.map(a => ({
+          id: a.id,
+          x: Math.round(a.x * 100) / 100,
+          y: Math.round(a.y * 100) / 100,
+          z: Math.round(a.z * 100) / 100,
+        })),
+      };
+      ws.send(JSON.stringify(batchMsg));
+      console.log(`Step ${stepCount}: sent batch (${updatedAgents.length} agents)`);
+    }, STEP_INTERVAL_MS);
+  });
 
-    const serialized = JSON.stringify(batchMsg);
-    ws.send(serialized);
-    console.log(`Step ${stepCount}: sent 1 batched message (${serialized.length} bytes, ${updatedAgents.length} agents)`);
-  }, STEP_INTERVAL_MS);
-});
+  ws.on('close', () => {
+    console.log(`Disconnected. Reconnecting in ${RECONNECT_DELAY_MS}ms...`);
+    clearInterval(stepTimer);
+    setTimeout(connect, RECONNECT_DELAY_MS);
+  });
 
-ws.on('error', (err) => console.error('Mock env feed error:', err.message));
-ws.on('close', () => console.log('Mock env feed disconnected'));
+  ws.on('error', (err) => {
+    console.error('Mock env feed error:', err.message);
+  });
+}
+
+connect();

@@ -4,13 +4,21 @@ const { createAgentMessage, isValidAgentMessage } = require('./schema');
 const PORT = process.env.PORT || 8080;
 
 const wss = new WebSocket.Server({ port: PORT });
+const clients = new Set();
 
 wss.on('listening', () => {
   console.log(`WebSocket server listening on ws://localhost:${PORT}`);
 });
 
 wss.on('connection', (socket, req) => {
-  console.log('Client connected:', req.socket.remoteAddress);
+  clients.add(socket);
+  console.log(`Client connected: ${req.socket.remoteAddress} (total: ${clients.size})`);
+
+  // Heartbeat tracking to detect dead connections
+  socket.isAlive = true;
+  socket.on('pong', () => {
+    socket.isAlive = true;
+  });
 
   socket.on('message', (data) => {
     let parsed;
@@ -22,13 +30,11 @@ wss.on('connection', (socket, req) => {
       return;
     }
 
-    // Handle batched per-step updates (Day 8 optimization)
     if (parsed.type === 'batch_update') {
       console.log(`Received batch: step ${parsed.step}, ${parsed.agents.length} agents`);
       return;
     }
 
-    // Fallback: single-agent message validation (Day 2/3 behavior)
     if (!isValidAgentMessage(parsed)) {
       console.warn('Message does not match agent schema, ignoring:', parsed);
       socket.send(JSON.stringify({ type: 'error', message: 'Message failed schema validation' }));
@@ -39,11 +45,13 @@ wss.on('connection', (socket, req) => {
   });
 
   socket.on('close', (code, reason) => {
-    console.log(`Client disconnected (code: ${code}, reason: ${reason || 'none'})`);
+    clients.delete(socket);
+    console.log(`Client disconnected (code: ${code}, reason: ${reason || 'none'}) (total: ${clients.size})`);
   });
 
   socket.on('error', (err) => {
     console.error('Socket error:', err.message);
+    clients.delete(socket);
   });
 
   try {
@@ -52,6 +60,23 @@ wss.on('connection', (socket, req) => {
   } catch (err) {
     console.error('Failed to send initial test message:', err.message);
   }
+});
+
+// Ping clients every 30s to detect dead connections that didn't fire 'close'
+const heartbeatInterval = setInterval(() => {
+  wss.clients.forEach((socket) => {
+    if (socket.isAlive === false) {
+      console.log('Terminating unresponsive client');
+      clients.delete(socket);
+      return socket.terminate();
+    }
+    socket.isAlive = false;
+    socket.ping();
+  });
+}, 30000);
+
+wss.on('close', () => {
+  clearInterval(heartbeatInterval);
 });
 
 wss.on('error', (err) => {
