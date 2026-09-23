@@ -1,10 +1,9 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { Radio, Eye, Mountain, Crosshair } from 'lucide-react';
+import { Radio, Eye, Mountain, Crosshair, Wifi } from 'lucide-react';
 import CameraRig from './components/CameraRig';
 import SwarmManager from './components/SwarmManager';
 import Terrain from './components/Terrain';
-import DummySwarmSpheres from './components/DummySwarmSpheres';
 import { useSwarmStore } from './store/useSwarmStore';
 
 function SimulationCanvas() {
@@ -23,11 +22,8 @@ function SimulationCanvas() {
       {/* 3D Topographical Map */}
       <Terrain size={120} segments={64} />
 
-      {/* Active Drone Mesh Units (5 Primary Drones) */}
+      {/* Active Drone Mesh Units driven by live WebSocket stream */}
       <SwarmManager />
-
-      {/* Dummy Swarm Spheres (Simulating full cluster spread) */}
-      <DummySwarmSpheres count={45} />
 
       <CameraRig />
     </>
@@ -35,21 +31,41 @@ function SimulationCanvas() {
 }
 
 export default function App() {
-  const { cameraMode, setCameraMode, selectedDroneId, setSelectedDroneId, drones } = useSwarmStore();
+  const {
+    cameraMode,
+    setCameraMode,
+    selectedDroneId,
+    setSelectedDroneId,
+    drones,
+    isConnected,
+    connectWebSocket,
+  } = useSwarmStore();
+
+  useEffect(() => {
+    connectWebSocket();
+  }, [connectWebSocket]);
+
+  const activeDroneCount = Object.keys(drones).length;
 
   return (
     <div className="relative w-screen h-screen select-none bg-[#080c14]">
       {/* Top Left HUD */}
       <header className="absolute top-4 left-4 z-10 flex items-center gap-3 bg-slate-900/90 backdrop-blur border border-slate-700/60 px-4 py-2.5 rounded-lg text-white shadow-xl">
-        <Radio className="w-5 h-5 text-emerald-400 animate-pulse" />
+        <Radio className={`w-5 h-5 ${isConnected ? 'text-emerald-400' : 'text-amber-400'} animate-pulse`} />
         <div>
           <h1 className="text-sm font-semibold tracking-wide">SwarmRL Telemetry Viewport</h1>
-          <p className="text-xs text-slate-400">Day 04: Topographical Terrain & Swarm Distribution</p>
+          <p className="text-xs text-slate-400">
+            {isConnected ? `Streaming live telemetry (${activeDroneCount} active drones)` : 'Connecting to relay...'}
+          </p>
         </div>
       </header>
 
       {/* Status Badges */}
       <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+        <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-700/60 px-3 py-2 rounded text-xs text-slate-300">
+          <Wifi className={`w-4 h-4 ${isConnected ? 'text-emerald-400' : 'text-rose-400'}`} />
+          <span>{isConnected ? 'Relay: Connected' : 'Relay: Offline'}</span>
+        </div>
         <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-700/60 px-3 py-2 rounded text-xs text-slate-300">
           <Mountain className="w-4 h-4 text-emerald-400" />
           <span>Terrain: Displaced Mesh (64 seg)</span>
