@@ -1,38 +1,34 @@
 import React from 'react';
 import { Canvas } from '@react-three/fiber';
-import { Grid } from '@react-three/drei';
-import { Radio, Eye, Crosshair } from 'lucide-react';
+import { Radio, Eye, Mountain, Crosshair } from 'lucide-react';
 import CameraRig from './components/CameraRig';
 import SwarmManager from './components/SwarmManager';
+import Terrain from './components/Terrain';
+import DummySwarmSpheres from './components/DummySwarmSpheres';
 import { useSwarmStore } from './store/useSwarmStore';
 
 function SimulationCanvas() {
   return (
     <>
-      <ambientLight intensity={0.6} />
+      <ambientLight intensity={0.7} />
       <directionalLight
-        position={[25, 50, 25]}
-        intensity={1.5}
+        position={[30, 60, 30]}
+        intensity={1.8}
         castShadow
         shadow-mapSize-width={2048}
         shadow-mapSize-height={2048}
       />
-      <hemisphereLight skyColor="#38bdf8" groundColor="#0f172a" intensity={0.4} />
+      <hemisphereLight skyColor="#38bdf8" groundColor="#080c14" intensity={0.4} />
 
-      {/* Grid Floor */}
-      <Grid
-        position={[0, -0.01, 0]}
-        args={[120, 120]}
-        cellSize={2}
-        cellThickness={0.7}
-        cellColor="#1e293b"
-        sectionSize={10}
-        sectionThickness={1.4}
-        sectionColor="#0284c7"
-        fadeDistance={90}
-      />
+      {/* 3D Topographical Map */}
+      <Terrain size={120} segments={64} />
 
+      {/* Active Drone Mesh Units (5 Primary Drones) */}
       <SwarmManager />
+
+      {/* Dummy Swarm Spheres (Simulating full cluster spread) */}
+      <DummySwarmSpheres count={45} />
+
       <CameraRig />
     </>
   );
@@ -48,11 +44,26 @@ export default function App() {
         <Radio className="w-5 h-5 text-emerald-400 animate-pulse" />
         <div>
           <h1 className="text-sm font-semibold tracking-wide">SwarmRL Telemetry Viewport</h1>
-          <p className="text-xs text-slate-400">Day 03: Basic Drone Mesh Models & Controls</p>
+          <p className="text-xs text-slate-400">Day 04: Topographical Terrain & Swarm Distribution</p>
         </div>
       </header>
 
-      {/* Drone Focus Selector HUD */}
+      {/* Status Badges */}
+      <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+        <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-700/60 px-3 py-2 rounded text-xs text-slate-300">
+          <Mountain className="w-4 h-4 text-emerald-400" />
+          <span>Terrain: Displaced Mesh (64 seg)</span>
+        </div>
+        <button
+          onClick={() => setCameraMode(cameraMode === 'orbit' ? 'follow' : 'orbit')}
+          className="flex items-center gap-2 bg-slate-900/80 hover:bg-slate-800 text-xs text-slate-200 border border-slate-700 px-3 py-2 rounded shadow transition-colors"
+        >
+          <Eye className="w-4 h-4 text-sky-400" />
+          Mode: {cameraMode.toUpperCase()}
+        </button>
+      </div>
+
+      {/* Drone Focus Selector */}
       <div className="absolute bottom-4 left-4 z-10 flex items-center gap-2 bg-slate-900/90 backdrop-blur border border-slate-800 p-2 rounded-lg text-xs text-slate-300">
         <Crosshair className="w-4 h-4 text-sky-400" />
         <span>Focus Agent:</span>
@@ -70,19 +81,8 @@ export default function App() {
         </select>
       </div>
 
-      {/* View Mode Toggle */}
-      <div className="absolute top-4 right-4 z-10 flex gap-2">
-        <button
-          onClick={() => setCameraMode(cameraMode === 'orbit' ? 'follow' : 'orbit')}
-          className="flex items-center gap-2 bg-slate-900/80 hover:bg-slate-800 text-xs text-slate-200 border border-slate-700 px-3 py-2 rounded shadow transition-colors"
-        >
-          <Eye className="w-4 h-4 text-sky-400" />
-          Mode: {cameraMode.toUpperCase()}
-        </button>
-      </div>
-
       <Canvas
-        camera={{ position: [0, 35, 45], fov: 50, near: 0.1, far: 1000 }}
+        camera={{ position: [0, 50, 70], fov: 50, near: 0.1, far: 1000 }}
         gl={{ antialias: true, alpha: false }}
       >
         <SimulationCanvas />
