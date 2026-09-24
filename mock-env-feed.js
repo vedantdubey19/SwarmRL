@@ -1,4 +1,5 @@
 const WebSocket = require('ws');
+const { createTelemetryFrame } = require('./schema');
 
 const NUM_AGENTS = 50;
 const STEP_INTERVAL_MS = 200;
@@ -11,24 +12,41 @@ let stepTimer = null;
 
 function resetEnv() {
   stepCount = 0;
-  agents = Array.from({ length: NUM_AGENTS }, (_, i) => ({
-    id: `drone-${i + 1}`,
-    x: Math.random() * 100,
-    y: Math.random() * 100,
-    z: Math.random() * 20,
-  }));
-  console.log('Mock env reset. Initial agent positions generated.');
+  drones = Array.from({ length: NUM_AGENTS }, (_, i) => {
+    const angle = (i / NUM_AGENTS) * Math.PI * 2;
+    const r = 20.0 + (i % 5) * 3.0;
+    return {
+      id: i,
+      agent_id: `drone_${i}`,
+      pos: [Math.cos(angle) * r, 5.0, Math.sin(angle) * r],
+      vel: [0.0, 0.0, 0.0],
+      heading: angle,
+      rot: [0.0, 0.0, 0.0, 1.0],
+      status: 'active',
+      detections: [],
+    };
+  });
 }
 
 function stepEnv() {
   stepCount += 1;
-  agents = agents.map(agent => ({
-    ...agent,
-    x: agent.x + (Math.random() - 0.5) * 2,
-    y: agent.y + (Math.random() - 0.5) * 2,
-    z: Math.max(0, agent.z + (Math.random() - 0.5) * 1),
-  }));
-  return agents;
+  drones = drones.map(drone => {
+    const vx = (Math.random() - 0.5) * 2.0;
+    const vy = (Math.random() - 0.5) * 0.5;
+    const vz = (Math.random() - 0.5) * 2.0;
+    const heading = (drone.heading + (Math.random() - 0.5) * 0.1) % (Math.PI * 2);
+
+    return {
+      ...drone,
+      pos: [
+        Math.max(-48, Math.min(48, drone.pos[0] + vx)),
+        Math.max(1, Math.min(18, drone.pos[1] + vy)),
+        Math.max(-48, Math.min(48, drone.pos[2] + vz)),
+      ],
+      vel: [vx, vy, vz],
+      heading,
+    };
+  });
 }
 
 function connect() {

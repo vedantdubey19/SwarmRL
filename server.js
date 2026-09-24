@@ -1,14 +1,19 @@
 const WebSocket = require('ws');
-const { createAgentMessage, isValidAgentMessage } = require('./schema');
+const {
+  isValidTelemetryFrame,
+  isValidGridDeltaMessage,
+  isValidControlMessage,
+  isValidRegisterMessage,
+  isValidAgentMessage,
+} = require('./schema');
 
 const PORT = process.env.PORT || 8080;
 
 const wss = new WebSocket.Server({ port: PORT });
 const clients = new Set();
 
-wss.on('listening', () => {
-  console.log(`WebSocket server listening on ws://localhost:${PORT}`);
-});
+function createServer(port = PORT) {
+  const wss = new WebSocket.Server({ port });
 
 wss.on('connection', (socket, req) => {
   clients.add(socket);
@@ -34,6 +39,7 @@ wss.on('connection', (socket, req) => {
       console.log(`Received batch: step ${parsed.step}, ${parsed.agents.length} agents`);
       return;
     }
+  }
 
     if (!isValidAgentMessage(parsed)) {
       console.warn('Message does not match agent schema, ignoring:', parsed);
@@ -41,7 +47,7 @@ wss.on('connection', (socket, req) => {
       return;
     }
 
-    console.log('Valid agent update:', parsed);
+    console.log(`WebSocket server listening on ws://localhost:${port}`);
   });
 
   socket.on('close', (code, reason) => {
@@ -54,13 +60,8 @@ wss.on('connection', (socket, req) => {
     clients.delete(socket);
   });
 
-  try {
-    const testMessage = createAgentMessage({ id: 'drone-1', x: 0, y: 0, z: 0 });
-    socket.send(JSON.stringify(testMessage));
-  } catch (err) {
-    console.error('Failed to send initial test message:', err.message);
-  }
-});
+  return wss;
+}
 
 // Ping clients every 30s to detect dead connections that didn't fire 'close'
 const heartbeatInterval = setInterval(() => {
@@ -88,10 +89,13 @@ wss.on('error', (err) => {
   process.exit(1);
 });
 
-process.on('uncaughtException', (err) => {
-  console.error('Uncaught exception:', err);
-});
+  process.on('uncaughtException', (err) => {
+    console.error('Uncaught exception:', err);
+  });
 
-process.on('unhandledRejection', (reason) => {
-  console.error('Unhandled promise rejection:', reason);
-});
+  process.on('unhandledRejection', (reason) => {
+    console.error('Unhandled promise rejection:', reason);
+  });
+}
+
+module.exports = { createServer, publishers, subscribers };
