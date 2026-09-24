@@ -2,13 +2,13 @@ const WebSocket = require('ws');
 const { createTelemetryFrame } = require('./schema');
 
 const NUM_AGENTS = 50;
-const STEP_INTERVAL_MS = 40; // 25 Hz
-const WS_URL = process.env.WS_URL || 'ws://localhost:8080';
+const STEP_INTERVAL_MS = 200;
+const RECONNECT_DELAY_MS = 2000;
 
-const ws = new WebSocket(WS_URL);
-
+let ws;
+let agents = [];
 let stepCount = 0;
-let drones = [];
+let stepTimer = null;
 
 function resetEnv() {
   stepCount = 0;
@@ -49,35 +49,40 @@ function stepEnv() {
   });
 }
 
-ws.on('open', () => {
-  console.log(`Mock env feed connected to ${WS_URL}. Registering as publisher...`);
-  ws.send(JSON.stringify({ type: 'register', role: 'publisher' }));
+function connect() {
+  ws = new WebSocket('ws://localhost:8080');
 
-  resetEnv();
+  ws.on('open', () => {
+    console.log('Mock env feed connected.');
+    resetEnv();
 
-  setInterval(() => {
-    stepEnv();
+    stepTimer = setInterval(() => {
+      const updatedAgents = stepEnv();
+      const batchMsg = {
+        type: 'batch_update',
+        step: stepCount,
+        timestamp: Date.now(),
+        agents: updatedAgents.map(a => ({
+          id: a.id,
+          x: Math.round(a.x * 100) / 100,
+          y: Math.round(a.y * 100) / 100,
+          z: Math.round(a.z * 100) / 100,
+        })),
+      };
+      ws.send(JSON.stringify(batchMsg));
+      console.log(`Step ${stepCount}: sent batch (${updatedAgents.length} agents)`);
+    }, STEP_INTERVAL_MS);
+  });
 
-    const frame = createTelemetryFrame({
-      step: stepCount,
-      timestamp: Date.now(),
-      sim_time: stepCount * 0.04,
-      metrics: {
-        explored_fraction: Math.min(1.0, stepCount * 0.001),
-        active_drones: NUM_AGENTS,
-        targets_found: 1,
-        total_targets: 5,
-        step_reward_sum: 5.2,
-      },
-      drones,
-      targets: [
-        { id: 0, pos: [12.0, 0.5, -8.0], found: true, discovered_by: 'drone_0' },
-      ],
-    });
+  ws.on('close', () => {
+    console.log(`Disconnected. Reconnecting in ${RECONNECT_DELAY_MS}ms...`);
+    clearInterval(stepTimer);
+    setTimeout(connect, RECONNECT_DELAY_MS);
+  });
 
-    ws.send(JSON.stringify(frame));
-  }, STEP_INTERVAL_MS);
-});
+  ws.on('error', (err) => {
+    console.error('Mock env feed error:', err.message);
+  });
+}
 
-ws.on('error', (err) => console.error('Mock env feed error:', err.message));
-ws.on('close', () => console.log('Mock env feed disconnected'));
+connect();
