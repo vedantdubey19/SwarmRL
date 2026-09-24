@@ -7,6 +7,13 @@ from sensors.events import (
     detect_targets_found,
     distance_between,
 )
+from sensors.export import (
+    export_metrics_csv,
+    export_metrics_json,
+    export_summary_json,
+    metric_records,
+    metrics_from_records,
+)
 from sensors.exploration import (
     ExplorationConfig,
     ExplorationMap,
@@ -69,6 +76,11 @@ __all__ = [
     "detect_targets_found",
     "distance_between",
     "ensure_json_serializable",
+    "export_metrics_csv",
+    "export_metrics_json",
+    "export_summary_json",
+    "metric_records",
     "metrics_from_payload",
+    "metrics_from_records",
     "validate_event_flags",
 ]
