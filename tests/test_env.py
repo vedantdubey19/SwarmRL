@@ -66,6 +66,31 @@ def test_env_step_contract_and_reward_unpack():
                 assert next_obs[agent_id].shape == (81,)
                 assert next_obs[agent_id].dtype == np.float32
 
+    # RLlib MultiAgentEnv contract requires __all__ in terminations and truncations
+    assert "__all__" in terminations
+    assert isinstance(terminations["__all__"], bool)
+    assert "__all__" in truncations
+    assert isinstance(truncations["__all__"], bool)
+
+
+def test_rllib_dict_observation_mode():
+    env = SwarmRLParallelEnv(num_agents=50, include_global_state=True)
+    obs, _ = env.reset(seed=42)
+
+    for agent_id in env.possible_agents:
+        space = env.observation_space(agent_id)
+        assert "obs" in space.spaces
+        assert "state" in space.spaces
+        assert space.spaces["obs"].shape == (81,)
+        assert space.spaces["state"].shape == (471,)
+
+        agent_obs = obs[agent_id]
+        assert isinstance(agent_obs, dict)
+        assert agent_obs["obs"].shape == (81,)
+        assert agent_obs["obs"].dtype == np.float32
+        assert agent_obs["state"].shape == (471,)
+        assert agent_obs["state"].dtype == np.float32
+
 
 def test_centralized_critic_state():
     env = SwarmRLParallelEnv(num_agents=50)
@@ -101,3 +126,4 @@ def test_env_step_throughput_sustains_20hz():
 
     print(f"\n[Throughput Benchmark] 50 agents x {num_steps} steps took {elapsed:.3f}s ({fps:.1f} Hz)")
     assert fps >= 20.0, f"Throughput {fps:.1f} Hz is below required 20 Hz"
+

@@ -47,6 +47,7 @@ class SwarmRLParallelEnv(ParallelEnv):
         world_size: tuple[float, float] = (100.0, 100.0),
         reward_config: Optional[RewardConfig] = None,
         sensor_config: Optional[SensorConfig] = None,
+        include_global_state: bool = False,
     ):
         super().__init__()
         self.swarm_size = num_agents
@@ -55,6 +56,7 @@ class SwarmRLParallelEnv(ParallelEnv):
         self.world_size = world_size
         self.reward_config = reward_config or RewardConfig()
         self.sensor_config = sensor_config or SensorConfig(range=20.0, field_of_view=np.pi / 2.0)
+        self.include_global_state = include_global_state
 
         self.cone_sensor = ConeSensor(self.sensor_config)
         self.exploration_map = ExplorationMap(
@@ -75,10 +77,18 @@ class SwarmRLParallelEnv(ParallelEnv):
         }
 
         # 81-dim continuous observation: 8 ego + 24 KNN + 24 ConeSensor + 25 local patch
-        self._observation_spaces = {
-            agent: Box(low=-np.inf, high=np.inf, shape=(81,), dtype=np.float32)
-            for agent in self.possible_agents
-        }
+        # (Optionally wrapped in Dict({"obs": (81,), "state": (471,)}) for RLlib MAPPO Centralized Critic)
+        state_dim = self.swarm_size * 9 + 5 * 4 + 1
+        self._observation_spaces = {}
+        for agent in self.possible_agents:
+            local_box = Box(low=-np.inf, high=np.inf, shape=(81,), dtype=np.float32)
+            if self.include_global_state:
+                self._observation_spaces[agent] = gym.spaces.Dict({
+                    "obs": local_box,
+                    "state": Box(low=-np.inf, high=np.inf, shape=(state_dim,), dtype=np.float32),
+                })
+            else:
+                self._observation_spaces[agent] = local_box
 
         self.drones: dict[str, DroneState] = {}
         self.targets: list[ArenaObject] = []
@@ -151,7 +161,14 @@ class SwarmRLParallelEnv(ParallelEnv):
         agent_positions = {a: d.position for a, d in self.drones.items()}
         self.exploration_map.mark_explored_per_agent(agent_positions, radius=2.0)
 
-        observations = {agent: self._get_observation(agent) for agent in self.agents}
+        global_state = self.state() if self.include_global_state else None
+        observations = {}
+        for agent in self.agents:
+            local_obs = self._get_observation(agent)
+            if self.include_global_state:
+                observations[agent] = {"obs": local_obs, "state": global_state}
+            else:
+                observations[agent] = local_obs
         infos = {agent: {} for agent in self.agents}
         return observations, infos
 
@@ -337,10 +354,22 @@ class SwarmRLParallelEnv(ParallelEnv):
             terminations[agent_id] = is_terminated
             truncations[agent_id] = is_truncated
 
-        observations = {agent: self._get_observation(agent) for agent in active_agents}
+        global_state = self.state() if self.include_global_state else None
+        observations = {}
+        for agent in active_agents:
+            local_obs = self._get_observation(agent)
+            if self.include_global_state:
+                observations[agent] = {"obs": local_obs, "state": global_state}
+            else:
+                observations[agent] = local_obs
 
         # Update remaining active agents
         self.agents = [a for a in self.agents if self.drones[a].alive and not is_truncated]
+
+        all_targets_found = all(t.found for t in self.targets)
+        all_drones_dead = all(not self.drones[a].alive for a in self.possible_agents)
+        terminations["__all__"] = bool(all_drones_dead or all_targets_found)
+        truncations["__all__"] = bool(is_truncated)
 
         return observations, rewards, terminations, truncations, infos
 
