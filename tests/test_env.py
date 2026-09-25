@@ -127,3 +127,51 @@ def test_env_step_throughput_sustains_20hz():
     print(f"\n[Throughput Benchmark] 50 agents x {num_steps} steps took {elapsed:.3f}s ({fps:.1f} Hz)")
     assert fps >= 20.0, f"Throughput {fps:.1f} Hz is below required 20 Hz"
 
+
+def test_reward_breakdown_diagnostic_wiring_and_target_discovery():
+    env = SwarmRLParallelEnv(num_agents=50)
+    env.reset(seed=42)
+
+    # Place drone_0 and drone_1 directly over target_0 at cruise altitude y=5.0
+    target_pos = env.targets[0].position.copy()
+    env.drones["drone_0"].position = np.array([target_pos[0], 5.0, target_pos[2]], dtype=np.float32)
+    env.drones["drone_1"].position = np.array([target_pos[0] + 2.2, 5.0, target_pos[2]], dtype=np.float32)
+
+    actions = {a: np.zeros(4, dtype=np.float32) for a in env.agents}
+    _, rewards, terminations, _, infos = env.step(actions)
+
+    rb0 = infos["drone_0"]["reward_breakdown"]
+    rb1 = infos["drone_1"]["reward_breakdown"]
+
+    # Both drones at y=5.0 should symmetrically discover target_0 at y=0.5
+    assert rb0["target_found"] == pytest.approx(10.0)
+    assert rb1["target_found"] == pytest.approx(10.0)
+    assert rb0["team_target_found"] == pytest.approx(0.2)
+    assert rb0["team_target_found_flag"] is True
+    assert rb0["min_neighbor_dist"] is not None
+    assert rb0["min_neighbor_dist"] == pytest.approx(2.2, abs=1e-3)
+    assert rb0["proximity_penalty"] < 0.0
+    assert "team_cells" in rb0
+    assert "event_flags" in infos["drone_0"]
+    assert infos["drone_0"]["event_flags"]["team_target_found"] is True
+
+
+def test_all_targets_found_terminates_all_active_agents():
+    env = SwarmRLParallelEnv(num_agents=10)
+    env.reset(seed=7)
+
+    # Mark first 4 targets found, place drone_0 over 5th target
+    for t in env.targets[:-1]:
+        t.found = True
+    last_t = env.targets[-1].position
+    env.drones["drone_0"].position = np.array([last_t[0], 5.0, last_t[2]], dtype=np.float32)
+
+    actions = {a: np.zeros(4, dtype=np.float32) for a in env.agents}
+    _, _, terminations, _, _ = env.step(actions)
+
+    assert terminations["__all__"] is True
+    for agent_id, term in terminations.items():
+        assert term is True, f"Agent {agent_id} should terminate when all_targets_found is True"
+    assert len(env.agents) == 0
+
+
