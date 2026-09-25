@@ -30,11 +30,13 @@ wss.on('connection', (socket, req) => {
       return;
     }
 
+    // Handle batched per-step updates (Day 8 optimization)
     if (parsed.type === 'batch_update') {
       console.log(`Received batch: step ${parsed.step}, ${parsed.agents.length} agents`);
       return;
     }
 
+    // Fallback: single-agent message validation (Day 2/3 behavior)
     if (!isValidAgentMessage(parsed)) {
       console.warn('Message does not match agent schema, ignoring:', parsed);
       socket.send(JSON.stringify({ type: 'error', message: 'Message failed schema validation' }));
