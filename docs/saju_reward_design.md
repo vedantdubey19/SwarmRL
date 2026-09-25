@@ -10,7 +10,7 @@ Provide a transparent reward calculation for each drone. The total reward
 must be accompanied by separate components so that the training team can
 understand why an agent received a positive or negative result.
 
-## Initial reward values
+## Calibrated reward values (Anti-Freeze & Swarm Coordination)
 
 | Event | Value |
 |---|---:|
