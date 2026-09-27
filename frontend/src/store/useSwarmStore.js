@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import * as THREE from 'three';
 
 function getWebSocketEndpoint() {
   if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_WS_URL) {
@@ -7,32 +8,30 @@ function getWebSocketEndpoint() {
   if (typeof process !== 'undefined' && process.env && process.env.VITE_WS_URL) {
     return process.env.VITE_WS_URL;
   }
-  if (typeof window !== 'undefined' && window.location) {
+  if (typeof window !== 'undefined' && window.location && window.location.host) {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${protocol}//${window.location.hostname}:8080`;
+    return `${protocol}//${window.location.host}`;
   }
-  return 'ws://localhost:8080';
+  return 'ws://127.0.0.1:8080';
 }
 
+const telemetryMap = new Map();
+const tempEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+
 export const useSwarmStore = create((set, get) => ({
-  drones: {},
+  droneIds: [],
   selectedDroneId: null,
   cameraMode: 'orbit',
   isConnected: false,
   metrics: null,
+  lastStep: -1,
+  lastTimestamp: 0,
   _socket: null,
-
-  updateDroneBatch: (batch) =>
-    set((state) => {
-      const updated = { ...state.drones };
-      batch.forEach((drone) => {
-        updated[drone.id] = { ...drone };
-      });
-      return { drones: updated };
-    }),
 
   setSelectedDroneId: (id) => set({ selectedDroneId: id }),
   setCameraMode: (mode) => set({ cameraMode: mode }),
+
+  getDroneTelemetry: (id) => telemetryMap.get(id),
 
   connectWebSocket: (customUrl) => {
     const endpoint = customUrl || getWebSocketEndpoint();
@@ -53,17 +52,99 @@ export const useSwarmStore = create((set, get) => ({
         try {
           const data = JSON.parse(event.data);
           if (data.type === 'frame' && Array.isArray(data.drones)) {
-            const nextDrones = {};
-            data.drones.forEach((drone) => {
-              nextDrones[drone.id] = drone;
+            const { lastStep, lastTimestamp } = get();
+            if (typeof data.step === 'number' && data.step < lastStep) {
+              return;
+            }
+            if (typeof data.timestamp === 'number' && data.timestamp < lastTimestamp) {
+              return;
+            }
+
+            const currentIds = get().droneIds;
+            const incomingIds = [];
+
+            for (let i = 0; i < data.drones.length; i++) {
+              const drone = data.drones[i];
+              const droneId = String(drone.id ?? drone.agent_id ?? i);
+              incomingIds.push(droneId);
+
+              const rawPos = Array.isArray(drone.pos)
+                ? drone.pos
+                : [drone.x || 0, drone.y || 0, drone.z || 0];
+              const heading = typeof drone.heading === 'number' ? drone.heading : 0;
+
+              tempEuler.set(0, -heading + Math.PI / 2, 0);
+
+              let entry = telemetryMap.get(droneId);
+              if (!entry) {
+                entry = {
+                  id: droneId,
+                  currentPos: new THREE.Vector3(rawPos[0], rawPos[1], rawPos[2]),
+                  targetPos: new THREE.Vector3(rawPos[0], rawPos[1], rawPos[2]),
+                  currentRot: new THREE.Quaternion().setFromEuler(tempEuler),
+                  targetRot: new THREE.Quaternion().setFromEuler(tempEuler),
+                  heading,
+                  status: drone.status || 'active',
+                  detections: drone.detections || [],
+                };
+                telemetryMap.set(droneId, entry);
+              } else {
+                entry.targetPos.set(rawPos[0], rawPos[1], rawPos[2]);
+                entry.targetRot.setFromEuler(tempEuler);
+                entry.heading = heading;
+                entry.status = drone.status || 'active';
+                entry.detections = drone.detections || [];
+              }
+            }
+
+            const idsChanged = incomingIds.length !== currentIds.length ||
+              incomingIds.some((id, idx) => id !== currentIds[idx]);
+
+            set({
+              lastStep: typeof data.step === 'number' ? data.step : lastStep,
+              lastTimestamp: typeof data.timestamp === 'number' ? data.timestamp : lastTimestamp,
+              metrics: data.metrics || null,
+              ...(idsChanged ? { droneIds: incomingIds } : {}),
             });
-            set({ drones: nextDrones, metrics: data.metrics || null });
           } else if (data.type === 'batch_update' && Array.isArray(data.agents)) {
-            const nextDrones = {};
-            data.agents.forEach((agent) => {
-              nextDrones[agent.id] = agent;
+            const currentIds = get().droneIds;
+            const incomingIds = [];
+
+            for (let i = 0; i < data.agents.length; i++) {
+              const agent = data.agents[i];
+              const agentId = String(agent.id || i);
+              incomingIds.push(agentId);
+
+              const rawPos = [agent.x || 0, agent.y || 0, agent.z || 0];
+              const heading = typeof agent.heading === 'number' ? agent.heading : 0;
+              tempEuler.set(0, -heading + Math.PI / 2, 0);
+
+              let entry = telemetryMap.get(agentId);
+              if (!entry) {
+                entry = {
+                  id: agentId,
+                  currentPos: new THREE.Vector3(rawPos[0], rawPos[1], rawPos[2]),
+                  targetPos: new THREE.Vector3(rawPos[0], rawPos[1], rawPos[2]),
+                  currentRot: new THREE.Quaternion().setFromEuler(tempEuler),
+                  targetRot: new THREE.Quaternion().setFromEuler(tempEuler),
+                  heading,
+                  status: 'active',
+                  detections: [],
+                };
+                telemetryMap.set(agentId, entry);
+              } else {
+                entry.targetPos.set(rawPos[0], rawPos[1], rawPos[2]);
+                entry.targetRot.setFromEuler(tempEuler);
+                entry.heading = heading;
+              }
+            }
+
+            const idsChanged = incomingIds.length !== currentIds.length ||
+              incomingIds.some((id, idx) => id !== currentIds[idx]);
+
+            set({
+              ...(idsChanged ? { droneIds: incomingIds } : {}),
             });
-            set({ drones: nextDrones });
           }
         } catch (err) {
           console.error('Failed to parse telemetry message:', err);
