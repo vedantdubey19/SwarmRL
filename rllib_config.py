@@ -8,6 +8,12 @@ def build_training_config():
         .debugging(log_level="INFO")
         .checkpointing()
         .env_runners(num_env_runners=2)
+        .multi_agent(
+            policies={
+                "shared_policy": (None, obs_space, act_space, {}),
+            },
+            policy_mapping_fn=lambda agent_id, *args, **kwargs: "shared_policy",
+        )
     )
 
     return config
