@@ -2,7 +2,13 @@ import React, { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
-export default function DroneMesh({ id, position = [0, 0, 0], isSelected = false, onSelect }) {
+export default function DroneMesh({
+  id,
+  position = [0, 0, 0],
+  heading = 0,
+  isSelected = false,
+  onSelect,
+}) {
   const rotorsRef = useRef([]);
 
   // Spin rotor blades continuously on each animation frame
@@ -13,7 +19,14 @@ export default function DroneMesh({ id, position = [0, 0, 0], isSelected = false
   });
 
   return (
-    <group position={position} onClick={(e) => { e.stopPropagation(); onSelect(id); }}>
+    <group
+      position={position}
+      rotation={[0, -heading + Math.PI / 2, 0]}
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect(id);
+      }}
+    >
       {/* Central Chassis / Fuselage */}
       <mesh castShadow receiveShadow>
         <boxGeometry args={[1.2, 0.25, 1.2]} />

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Radio, Eye, Mountain, ShieldCheck, Activity } from 'lucide-react';
 import CameraRig from './components/CameraRig';
@@ -37,7 +37,7 @@ export default function App() {
     <div className="relative w-screen h-screen select-none bg-[#080c14]">
       {/* Top Left HUD */}
       <header className="absolute top-4 left-4 z-10 flex items-center gap-3 bg-slate-900/90 backdrop-blur border border-slate-700/60 px-4 py-2.5 rounded-lg text-white shadow-xl">
-        <Radio className="w-5 h-5 text-emerald-400 animate-pulse" />
+        <Radio className={`w-5 h-5 ${isConnected ? 'text-emerald-400' : 'text-amber-400'} animate-pulse`} />
         <div>
           <h1 className="text-sm font-semibold tracking-wide">SwarmRL Telemetry Viewport</h1>
           <p className="text-xs text-slate-400">Day 05: 50-Agent Polished Swarm & M1 Baseline</p>

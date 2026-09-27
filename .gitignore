@@ -1,7 +1,14 @@
-.venv/
-__pycache__/
-*.py[cod]
-.DS_Store
+# Node
 node_modules/
 dist/
 .env
+*.log
+
+# Python
+.venv/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+
+# OS
+.DS_Store
