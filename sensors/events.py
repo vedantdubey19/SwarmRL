@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
@@ -221,6 +222,27 @@ def detect_boundary_violations(
     return violations
 
 
+def compute_min_neighbor_distance(
+    agent_id: str,
+    positions: dict[str, np.ndarray | list[float]],
+) -> float | None:
+    """Return Euclidean distance to the closest neighbor drone, or None if alone."""
+    if agent_id not in positions or len(positions) <= 1:
+        return None
+
+    target = _position(positions[agent_id])
+    nearest = float("inf")
+
+    for other_id, other_pos in positions.items():
+        if other_id == agent_id:
+            continue
+        dist = float(np.linalg.norm(target - _position(other_pos)))
+        if dist < nearest:
+            nearest = dist
+
+    return nearest if nearest != float("inf") else None
+
+
 def build_event_flags(
     agent_id: str,
     drone_positions: dict[
@@ -232,7 +254,11 @@ def build_event_flags(
     world_min: np.ndarray | list[float],
     world_max: np.ndarray | list[float],
     config: EventConfig | None = None,
-) -> dict[str, bool]:
+    team_cells: int = 0,
+    team_target_found: bool | None = None,
+    min_neighbor_dist: float | None = None,
+    include_swarm_state: bool = False,
+) -> dict[str, Any]:
     """Build reward-ready event flags for one drone."""
     if not agent_id:
         raise ValueError("Agent ID must not be empty.")
@@ -269,7 +295,7 @@ def build_event_flags(
         tolerance=config.boundary_tolerance,
     )
 
-    return {
+    flags: dict[str, Any] = {
         "drone_collision": (
             agent_id in drone_collisions
         ),
@@ -283,3 +309,20 @@ def build_event_flags(
             agent_id in boundary_violations
         ),
     }
+
+    if include_swarm_state or team_cells != 0 or min_neighbor_dist is not None:
+        resolved_min_dist = (
+            min_neighbor_dist
+            if min_neighbor_dist is not None
+            else compute_min_neighbor_distance(agent_id, drone_positions)
+        )
+        resolved_team_target = (
+            bool(len(targets_found) > 0)
+            if team_target_found is None
+            else bool(team_target_found)
+        )
+        flags["team_cells"] = int(team_cells)
+        flags["team_target_found"] = resolved_team_target
+        flags["min_neighbor_dist"] = resolved_min_dist
+
+    return flags
