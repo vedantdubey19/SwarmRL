@@ -65,6 +65,10 @@ from sensors.stream import (
     StreamClosedError,
     SwarmPayloadStream,
 )
+from sensors.consumer import (
+    TelemetryConsumer,
+    TelemetryMessageError,
+)
 
 __all__ = [
     "AgentMetrics",
