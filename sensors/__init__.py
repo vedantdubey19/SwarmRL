@@ -69,6 +69,10 @@ from sensors.consumer import (
     TelemetryConsumer,
     TelemetryMessageError,
 )
+from sensors.service import (
+    TelemetryService,
+    TelemetryServiceError,
+)
 
 __all__ = [
     "AgentMetrics",
