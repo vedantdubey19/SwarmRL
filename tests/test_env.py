@@ -175,3 +175,123 @@ def test_all_targets_found_terminates_all_active_agents():
     assert len(env.agents) == 0
 
 
+def test_random_actions_n_steps_bounds_and_shapes():
+    env = SwarmRLParallelEnv(num_agents=50)
+    obs, infos = env.reset(seed=42)
+    assert len(obs) == 50
+
+    for step_idx in range(25):
+        actions = {
+            agent: np.random.uniform(-1.0, 1.0, size=(4,)).astype(np.float32)
+            for agent in env.agents
+        }
+        obs, rewards, terminations, truncations, infos = env.step(actions)
+        for agent_id, a_obs in obs.items():
+            assert a_obs.shape == (81,)
+            assert a_obs.dtype == np.float32
+            assert np.all(np.isfinite(a_obs))
+            drone = env.drones[agent_id]
+            assert -50.0 <= drone.position[0] <= 50.0
+            assert 0.0 <= drone.position[1] <= 20.0
+            assert -50.0 <= drone.position[2] <= 50.0
+
+        if terminations.get("__all__", False) or truncations.get("__all__", False):
+            break
+
+
+def test_boundary_collision_response_and_dampening():
+    env = SwarmRLParallelEnv(num_agents=5, terminate_on_boundary=False)
+    env.reset(seed=10)
+
+    # Place drone_0 at the positive X boundary moving outward at max velocity
+    env.drones["drone_0"].position = np.array([49.8, 5.0, 0.0], dtype=np.float32)
+    actions = {
+        "drone_0": np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32),
+        "drone_1": np.zeros(4, dtype=np.float32),
+        "drone_2": np.zeros(4, dtype=np.float32),
+        "drone_3": np.zeros(4, dtype=np.float32),
+        "drone_4": np.zeros(4, dtype=np.float32),
+    }
+
+    obs, rewards, terminations, truncations, infos = env.step(actions)
+
+    rb0 = infos["drone_0"]["reward_breakdown"]
+    assert infos["drone_0"]["event_flags"]["boundary_violation"] is True
+    assert rb0["boundary_violation"] == pytest.approx(-5.0)
+
+    drone0 = env.drones["drone_0"]
+    # Position corrected to boundary limit
+    assert drone0.position[0] == pytest.approx(50.0)
+    # Velocity dampened
+    assert np.abs(drone0.velocity[0]) <= 1.0
+
+
+def test_edge_case_zero_active_agents():
+    env = SwarmRLParallelEnv(num_agents=5)
+    env.reset(seed=11)
+
+    # Force all agents dead
+    for drone in env.drones.values():
+        drone.alive = False
+    env.agents.clear()
+
+    obs, rewards, terminations, truncations, infos = env.step({})
+    assert len(obs) == 0
+    assert len(rewards) == 0
+    assert terminations["__all__"] is True
+    assert len(env.agents) == 0
+
+
+def test_edge_case_identical_positions():
+    env = SwarmRLParallelEnv(num_agents=5)
+    env.reset(seed=12)
+
+    # Place all 5 drones at the identical coordinate
+    collinear_pos = np.array([0.0, 5.0, 0.0], dtype=np.float32)
+    for drone in env.drones.values():
+        drone.position = collinear_pos.copy()
+
+    actions = {a: np.zeros(4, dtype=np.float32) for a in env.agents}
+    obs, rewards, terminations, truncations, infos = env.step(actions)
+
+    # All observations must remain finite (no division by zero or NaN)
+    for a_id, a_obs in obs.items():
+        assert np.all(np.isfinite(a_obs))
+    # All drones should detect drone collision
+    for a_id in env.possible_agents:
+        if a_id in infos:
+            assert infos[a_id]["event_flags"]["drone_collision"] is True
+
+
+def test_edge_case_exact_boundary_positions():
+    env = SwarmRLParallelEnv(num_agents=3)
+    env.reset(seed=13)
+
+    # Position on exact boundaries
+    env.drones["drone_0"].position = np.array([50.0, 10.0, 0.0], dtype=np.float32)
+    env.drones["drone_1"].position = np.array([0.0, 20.0, 0.0], dtype=np.float32)
+    env.drones["drone_2"].position = np.array([0.0, 10.0, -50.0], dtype=np.float32)
+
+    actions = {a: np.zeros(4, dtype=np.float32) for a in env.agents}
+    obs, rewards, terminations, truncations, infos = env.step(actions)
+
+    for a_id, a_obs in obs.items():
+        assert np.all(np.isfinite(a_obs))
+
+
+def test_edge_case_max_velocity_actions_every_step():
+    env = SwarmRLParallelEnv(num_agents=10, terminate_on_boundary=False)
+    env.reset(seed=14)
+
+    max_actions = {a: np.array([1.0, 1.0, 1.0, 1.0], dtype=np.float32) for a in env.possible_agents}
+    for _ in range(15):
+        obs, rewards, terminations, truncations, infos = env.step(max_actions)
+        for a_id, a_obs in obs.items():
+            assert np.all(np.isfinite(a_obs))
+            d = env.drones[a_id]
+            assert -50.0 <= d.position[0] <= 50.0
+            assert 0.0 <= d.position[1] <= 20.0
+            assert -50.0 <= d.position[2] <= 50.0
+
+
+
