@@ -18,6 +18,13 @@ MAX_YAW_RATE = np.pi
 COMM_RADIUS = 30.0
 DEFAULT_NUM_AGENTS = 50
 
+WORLD_X_MIN: float = -50.0
+WORLD_X_MAX: float = 50.0
+WORLD_Y_MIN: float = 0.0
+WORLD_Y_MAX: float = 20.0
+WORLD_Z_MIN: float = -50.0
+WORLD_Z_MAX: float = 50.0
+
 
 @dataclass
 class DroneState:
@@ -48,6 +55,7 @@ class SwarmRLParallelEnv(ParallelEnv):
         reward_config: Optional[RewardConfig] = None,
         sensor_config: Optional[SensorConfig] = None,
         include_global_state: bool = False,
+        terminate_on_boundary: bool = False,
     ):
         super().__init__()
         self.swarm_size = num_agents
@@ -57,6 +65,7 @@ class SwarmRLParallelEnv(ParallelEnv):
         self.reward_config = reward_config or RewardConfig()
         self.sensor_config = sensor_config or SensorConfig(range=20.0, field_of_view=np.pi / 2.0)
         self.include_global_state = include_global_state
+        self.terminate_on_boundary = terminate_on_boundary
 
         self.cone_sensor = ConeSensor(self.sensor_config)
         self.exploration_map = ExplorationMap(
@@ -364,9 +373,19 @@ class SwarmRLParallelEnv(ParallelEnv):
         for agent_id in active_agents:
             pos = self.drones[agent_id].position
 
-            # Boundary checks
-            if not (-50.0 <= pos[0] <= 50.0 and 0.0 <= pos[1] <= 20.0 and -50.0 <= pos[2] <= 50.0):
+            # Boundary checks & collision response
+            if not (
+                WORLD_X_MIN <= pos[0] <= WORLD_X_MAX
+                and WORLD_Y_MIN <= pos[1] <= WORLD_Y_MAX
+                and WORLD_Z_MIN <= pos[2] <= WORLD_Z_MAX
+            ):
                 boundary_violations.add(agent_id)
+                # Boundary collision response: damp velocity and correct position
+                drone = self.drones[agent_id]
+                drone.position[0] = np.clip(drone.position[0], WORLD_X_MIN, WORLD_X_MAX)
+                drone.position[1] = np.clip(drone.position[1], WORLD_Y_MIN, WORLD_Y_MAX)
+                drone.position[2] = np.clip(drone.position[2], WORLD_Z_MIN, WORLD_Z_MAX)
+                drone.velocity *= 0.1
 
             # Obstacle checks
             for obs in self.obstacles:
@@ -437,7 +456,7 @@ class SwarmRLParallelEnv(ParallelEnv):
                 },
             }
 
-            is_dead = has_drone_coll or has_obs_coll or has_bound_viol
+            is_dead = has_drone_coll or has_obs_coll or (has_bound_viol if self.terminate_on_boundary else False)
             if is_dead:
                 self.drones[agent_id].alive = False
 
