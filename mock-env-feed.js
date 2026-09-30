@@ -24,12 +24,10 @@ function resetEnv() {
 }
 
 function mockReward(agent) {
-  // Stand-in for the real reward function (Venkatesh's +1 unexplored / -100 collision logic).
-  // Small random positive reward most steps, occasional penalty, so reward flow can be tested end-to-end.
   const roll = Math.random();
-  if (roll < 0.05) return -100; // simulated collision penalty
-  if (roll < 0.8) return 1; // simulated unexplored-area reward
-  return 0; // neutral step
+  if (roll < 0.05) return -100;
+  if (roll < 0.8) return 1;
+  return 0;
 }
 
 function stepEnv() {
@@ -48,6 +46,30 @@ function stepEnv() {
   return agents;
 }
 
+function computeObservationFeatures(agentList) {
+  return agentList.map(agent => {
+    const distances = agentList
+      .filter(other => other.id !== agent.id)
+      .map(other => {
+        const dx = other.x - agent.x;
+        const dy = other.y - agent.y;
+        const dz = other.z - agent.z;
+        return { id: other.id, distance: Math.sqrt(dx * dx + dy * dy + dz * dz) };
+      })
+      .sort((a, b) => a.distance - b.distance);
+
+    const nearest = distances.slice(0, 3);
+
+    return {
+      ...agent,
+      nearestNeighbors: nearest.map(n => ({
+        id: n.id,
+        distance: Math.round(n.distance * 100) / 100,
+      })),
+    };
+  });
+}
+
 function connect() {
   ws = new WebSocket('ws://localhost:8080');
 
@@ -57,19 +79,23 @@ function connect() {
 
     stepTimer = setInterval(() => {
       const updatedAgents = stepEnv();
+      const enrichedAgents = computeObservationFeatures(updatedAgents);
+
       const batchMsg = {
         type: 'batch_update',
         step: stepCount,
         timestamp: Date.now(),
-        agents: updatedAgents.map(a => ({
+        agents: enrichedAgents.map(a => ({
           id: a.id,
           x: Math.round(a.x * 100) / 100,
           y: Math.round(a.y * 100) / 100,
           z: Math.round(a.z * 100) / 100,
           reward: a.reward,
           cumulativeReward: a.cumulativeReward,
+          nearestNeighbors: a.nearestNeighbors,
         })),
       };
+
       ws.send(JSON.stringify(batchMsg));
 
       const avgReward = (updatedAgents.reduce((sum, a) => sum + a.reward, 0) / updatedAgents.length).toFixed(2);
