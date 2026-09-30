@@ -341,6 +341,65 @@ class ExplorationMap:
             explored_fraction=self.explored_fraction,
         )
 
+    def mark_explored_per_agent(
+        self,
+        agent_positions: dict[
+            str,
+            np.ndarray | list[float],
+        ],
+        radius: float | None = None,
+    ) -> tuple[dict[str, int], int]:
+        """Mark cells symmetrically for all agents and return per-agent and total counts."""
+        exploration_radius = (
+            self.config.exploration_radius
+            if radius is None
+            else radius
+        )
+
+        agent_new_cells: dict[str, int] = {
+            agent_id: 0 for agent_id in agent_positions
+        }
+        cells_to_mark: set[tuple[int, int]] = set()
+
+        for agent_id, position in agent_positions.items():
+            cells = self._cells_near_position(
+                position,
+                exploration_radius,
+            )
+            for column, row in cells:
+                if not self.grid[column, row]:
+                    agent_new_cells[agent_id] += 1
+                    cells_to_mark.add((column, row))
+
+        for column, row in cells_to_mark:
+            self.grid[column, row] = True
+
+        return agent_new_cells, len(cells_to_mark)
+
+    def get_local_patch(
+        self,
+        position: np.ndarray | list[float],
+        radius_cells: int = 2,
+    ) -> np.ndarray:
+        """Extract a square local grid patch centered on the agent's cell."""
+        cell = self._cell(position)
+        side = 2 * radius_cells + 1
+        patch = np.zeros((side, side), dtype=np.float32)
+
+        if cell is None:
+            return patch
+
+        center_col, center_row = cell
+        for dx in range(-radius_cells, radius_cells + 1):
+            for dy in range(-radius_cells, radius_cells + 1):
+                col = center_col + dx
+                row = center_row + dy
+                if 0 <= col < self.width and 0 <= row < self.height:
+                    if self.grid[col, row]:
+                        patch[dx + radius_cells, dy + radius_cells] = 1.0
+
+        return patch
+
     def as_array(self) -> np.ndarray:
         """Return the grid as a float array for rendering or RL."""
         return self.grid.astype(np.float32)

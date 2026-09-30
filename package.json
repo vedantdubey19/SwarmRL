@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test tests/schema.test.js"
+    "test": "node --test tests/schema.test.js tests/heading_transform.test.js",
+    "test:load": "node tests/load-test-50-agents.js"
   },
   "dependencies": {
     "ws": "^8.18.0"

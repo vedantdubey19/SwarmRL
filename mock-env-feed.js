@@ -1,4 +1,5 @@
 const WebSocket = require('ws');
+const { createTelemetryFrame } = require('./schema');
 
 const NUM_AGENTS = 50;
 const STEP_INTERVAL_MS = 200;
