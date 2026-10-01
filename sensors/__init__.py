@@ -1,3 +1,4 @@
+from sensors.recorder import TelemetryRecorder
 from sensors.telemetry import TelemetryPublisher
 from sensors.audit import (
     AuditReport,
