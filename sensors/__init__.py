@@ -74,6 +74,13 @@ from sensors.service import (
     TelemetryService,
     TelemetryServiceError,
 )
+from sensors.session_summary import (
+    TelemetrySessionSummary,
+    TelemetrySummaryError,
+    export_session_summary,
+    summarize_and_export_session,
+    summarize_telemetry_session,
+)
 
 __all__ = [
     "AgentMetrics",
