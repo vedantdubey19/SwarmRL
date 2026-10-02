@@ -12,6 +12,7 @@ __pycache__/
 
 # ML Checkpoints
 checkpoints/
+training/
 
 # OS
 .DS_Store
