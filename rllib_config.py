@@ -13,7 +13,6 @@ def env_creator(env_config: Optional[dict[str, Any]] = None) -> SwarmRLParallelE
         num_agents=cfg.get("num_agents", DEFAULT_NUM_AGENTS),
         max_steps=cfg.get("max_steps", 1000),
         dt=cfg.get("dt", 0.05),
-        world_size=cfg.get("world_size", (100.0, 100.0)),
         include_global_state=cfg.get("include_global_state", False),
     )
 
