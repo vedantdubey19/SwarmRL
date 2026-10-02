@@ -1,3 +1,4 @@
+from sensors.recorder import TelemetryRecorder
 from sensors.telemetry import TelemetryPublisher
 from sensors.audit import (
     AuditReport,
@@ -72,6 +73,13 @@ from sensors.consumer import (
 from sensors.service import (
     TelemetryService,
     TelemetryServiceError,
+)
+from sensors.session_summary import (
+    TelemetrySessionSummary,
+    TelemetrySummaryError,
+    export_session_summary,
+    summarize_and_export_session,
+    summarize_telemetry_session,
 )
 
 __all__ = [
