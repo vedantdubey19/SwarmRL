@@ -1,3 +1,4 @@
+from sensors.telemetry import TelemetryPublisher
 from sensors.audit import (
     AuditReport,
     build_audit_report,
@@ -63,6 +64,14 @@ from sensors.sensors import ConeSensor, SensorConfig
 from sensors.stream import (
     StreamClosedError,
     SwarmPayloadStream,
+)
+from sensors.consumer import (
+    TelemetryConsumer,
+    TelemetryMessageError,
+)
+from sensors.service import (
+    TelemetryService,
+    TelemetryServiceError,
 )
 
 __all__ = [
