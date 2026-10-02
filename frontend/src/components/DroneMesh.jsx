@@ -1,18 +1,26 @@
 import React, { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { useSwarmStore } from '../store/useSwarmStore';
 
 export default function DroneMesh({
   id,
-  position = [0, 0, 0],
-  heading = 0,
   isSelected = false,
   onSelect,
 }) {
+  const groupRef = useRef();
   const rotorsRef = useRef([]);
 
-  // Spin rotor blades continuously on each animation frame
   useFrame((_, delta) => {
+    const entry = useSwarmStore.getState().getDroneTelemetry(id);
+    if (entry && groupRef.current) {
+      const alpha = Math.min(1.0, delta * 18);
+      entry.currentPos.lerp(entry.targetPos, alpha);
+      entry.currentRot.slerp(entry.targetRot, alpha);
+      groupRef.current.position.copy(entry.currentPos);
+      groupRef.current.quaternion.copy(entry.currentRot);
+    }
+
     rotorsRef.current.forEach((rotor) => {
       if (rotor) rotor.rotation.y += delta * 25;
     });
@@ -20,11 +28,10 @@ export default function DroneMesh({
 
   return (
     <group
-      position={position}
-      rotation={[0, -heading + Math.PI / 2, 0]}
+      ref={groupRef}
       onClick={(e) => {
         e.stopPropagation();
-        onSelect(id);
+        onSelect?.(id);
       }}
     >
       {/* Central Chassis / Fuselage */}

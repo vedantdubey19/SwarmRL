@@ -5,7 +5,6 @@ import CameraRig from './components/CameraRig';
 import SwarmManager from './components/SwarmManager';
 import Terrain from './components/Terrain';
 import { useSwarmStore } from './store/useSwarmStore';
-import { useSwarmWebSocket } from './hooks/useSwarmWebSocket';
 
 function SimulationCanvas() {
   return (
@@ -23,7 +22,7 @@ function SimulationCanvas() {
       {/* Procedural 3D Terrain */}
       <Terrain size={120} segments={64} />
 
-      {/* 50 Dynamic Agents from WebSocket */}
+      {/* Real Swarm Manager Rendering Active Telemetry */}
       <SwarmManager />
 
       <CameraRig />
@@ -31,11 +30,39 @@ function SimulationCanvas() {
   );
 }
 
-export default function App() {
-  const { isConnected, lastLatencyMs } = useSwarmWebSocket('ws://localhost:8765');
-  const { cameraMode, setCameraMode, selectedDroneId, setSelectedDroneId, drones } = useSwarmStore();
+// Subscribes to per-frame latency on its own so the rest of App doesn't re-render every frame.
+function StreamStatus() {
+  const isConnected = useSwarmStore((s) => s.isConnected);
+  const latencyMs = useSwarmStore((s) => s.lastLatencyMs);
 
-  const activeDroneCount = Object.keys(drones).length;
+  return (
+    <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-700/60 px-3 py-2 rounded text-xs text-slate-300">
+      {isConnected ? (
+        <Wifi className="w-4 h-4 text-emerald-400" />
+      ) : (
+        <WifiOff className="w-4 h-4 text-rose-500 animate-bounce" />
+      )}
+      <span>
+        {isConnected
+          ? `STREAM ACTIVE${latencyMs !== null ? ` (${latencyMs}ms)` : ''}`
+          : 'DISCONNECTED'}
+      </span>
+    </div>
+  );
+}
+
+export default function App() {
+  const isConnected = useSwarmStore((s) => s.isConnected);
+  const connectWebSocket = useSwarmStore((s) => s.connectWebSocket);
+  const droneIds = useSwarmStore((s) => s.droneIds);
+  const cameraMode = useSwarmStore((s) => s.cameraMode);
+  const setCameraMode = useSwarmStore((s) => s.setCameraMode);
+  const selectedDroneId = useSwarmStore((s) => s.selectedDroneId);
+  const setSelectedDroneId = useSwarmStore((s) => s.setSelectedDroneId);
+
+  useEffect(() => {
+    connectWebSocket();
+  }, [connectWebSocket]);
 
   return (
     <div className="relative w-screen h-screen select-none bg-[#080c14]">
@@ -44,24 +71,19 @@ export default function App() {
         <Radio className={`w-5 h-5 ${isConnected ? 'text-emerald-400' : 'text-amber-400'} animate-pulse`} />
         <div>
           <h1 className="text-sm font-semibold tracking-wide">SwarmRL Telemetry Viewport</h1>
-          <p className="text-xs text-slate-400">Day 07: Live WebSocket Telemetry Binding</p>
+          <p className="text-xs text-slate-400">
+            {isConnected ? 'Live WebSocket Telemetry Stream (25-30 Hz)' : 'Connecting to Telemetry Relay...'}
+          </p>
         </div>
       </header>
 
       {/* Stream Metrics HUD */}
       <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
-        <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-700/60 px-3 py-2 rounded text-xs text-slate-300">
-          {isConnected ? (
-            <Wifi className="w-4 h-4 text-emerald-400" />
-          ) : (
-            <WifiOff className="w-4 h-4 text-rose-500 animate-bounce" />
-          )}
-          <span>{isConnected ? `STREAM ACTIVE (${lastLatencyMs}ms)` : 'DISCONNECTED'}</span>
-        </div>
+        <StreamStatus />
 
         <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-700/60 px-3 py-2 rounded text-xs text-slate-300">
           <Activity className="w-4 h-4 text-sky-400" />
-          <span>Active Agents: {activeDroneCount}</span>
+          <span>Swarm Count: {droneIds.length > 0 ? `${droneIds.length} Active` : 'Waiting for telemetry...'}</span>
         </div>
 
         <button
@@ -83,7 +105,7 @@ export default function App() {
           className="bg-slate-800 text-slate-100 border border-slate-700 rounded px-2 py-1 outline-none"
         >
           <option value="">None (Free Orbit)</option>
-          {Object.keys(drones).map((id) => (
+          {droneIds.map((id) => (
             <option key={id} value={id}>
               {id}
             </option>

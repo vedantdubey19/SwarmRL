@@ -10,5 +10,8 @@ __pycache__/
 .pytest_cache/
 *.py[cod]
 
+# ML Checkpoints
+checkpoints/
+
 # OS
 .DS_Store

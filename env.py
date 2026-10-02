@@ -18,6 +18,13 @@ MAX_YAW_RATE = np.pi
 COMM_RADIUS = 30.0
 DEFAULT_NUM_AGENTS = 50
 
+WORLD_X_MIN: float = -50.0
+WORLD_X_MAX: float = 50.0
+WORLD_Y_MIN: float = 0.0
+WORLD_Y_MAX: float = 20.0
+WORLD_Z_MIN: float = -50.0
+WORLD_Z_MAX: float = 50.0
+
 
 @dataclass
 class DroneState:
@@ -48,6 +55,7 @@ class SwarmRLParallelEnv(ParallelEnv):
         reward_config: Optional[RewardConfig] = None,
         sensor_config: Optional[SensorConfig] = None,
         include_global_state: bool = False,
+        terminate_on_boundary: bool = False,
     ):
         super().__init__()
         self.swarm_size = num_agents
@@ -57,6 +65,7 @@ class SwarmRLParallelEnv(ParallelEnv):
         self.reward_config = reward_config or RewardConfig()
         self.sensor_config = sensor_config or SensorConfig(range=20.0, field_of_view=np.pi / 2.0)
         self.include_global_state = include_global_state
+        self.terminate_on_boundary = terminate_on_boundary
 
         self.cone_sensor = ConeSensor(self.sensor_config)
         self.exploration_map = ExplorationMap(
@@ -135,17 +144,31 @@ class SwarmRLParallelEnv(ParallelEnv):
             )
             self.targets.append(ArenaObject(id=f"target_{i}", type="target", position=t_pos, radius=1.5))
 
-        # Place 8 static obstacles
+        # Place 8 static obstacles with rejection sampling to prevent Step-1 spawn collisions
+        drone_positions_arr = np.array([d.position for d in self.drones.values()], dtype=np.float32)
+        target_positions_arr = np.array([t.position for t in self.targets], dtype=np.float32)
         for i in range(8):
-            o_pos = np.array(
-                [
-                    float(rng.uniform(-35.0, 35.0)),
-                    float(rng.uniform(2.0, 8.0)),
-                    float(rng.uniform(-35.0, 35.0)),
-                ],
-                dtype=np.float32,
-            )
-            self.obstacles.append(ArenaObject(id=f"obstacle_{i}", type="obstacle", position=o_pos, radius=2.0))
+            obs_radius = 2.0
+            o_pos = np.zeros(3, dtype=np.float32)
+            for _ in range(50):
+                candidate = np.array(
+                    [
+                        float(rng.uniform(-35.0, 35.0)),
+                        float(rng.uniform(2.0, 8.0)),
+                        float(rng.uniform(-35.0, 35.0)),
+                    ],
+                    dtype=np.float32,
+                )
+                min_drone_d = float(np.min(np.linalg.norm(drone_positions_arr - candidate, axis=1)))
+                min_target_d = float(
+                    np.min(np.linalg.norm(target_positions_arr[:, [0, 2]] - candidate[[0, 2]], axis=1))
+                )
+                if min_drone_d >= (obs_radius + 3.5) and min_target_d >= (obs_radius + 3.5):
+                    o_pos = candidate
+                    break
+            else:
+                o_pos = candidate
+            self.obstacles.append(ArenaObject(id=f"obstacle_{i}", type="obstacle", position=o_pos, radius=obs_radius))
 
     def reset(
         self,
@@ -162,9 +185,10 @@ class SwarmRLParallelEnv(ParallelEnv):
         self.exploration_map.mark_explored_per_agent(agent_positions, radius=2.0)
 
         global_state = self.state() if self.include_global_state else None
+        batch_obs = self._compute_observations_batch(self.agents)
         observations = {}
-        for agent in self.agents:
-            local_obs = self._get_observation(agent)
+        for i, agent in enumerate(self.agents):
+            local_obs = batch_obs[i]
             if self.include_global_state:
                 observations[agent] = {"obs": local_obs, "state": global_state}
             else:
@@ -187,57 +211,104 @@ class SwarmRLParallelEnv(ParallelEnv):
 
         return objects
 
-    def _get_observation(self, agent_id: str) -> np.ndarray:
-        drone = self.drones[agent_id]
+    def _compute_observations_batch(
+        self,
+        agent_ids: list[str],
+        pos_matrix: Optional[np.ndarray] = None,
+        dist_matrix: Optional[np.ndarray] = None,
+    ) -> np.ndarray:
+        """Vectorized observation computation for a batch of active agents."""
+        n_agents = len(agent_ids)
+        if n_agents == 0:
+            return np.zeros((0, 81), dtype=np.float32)
 
-        # 1. Self Kinematics (8 floats)
-        self_feat = [
-            drone.position[0] / 50.0,
-            drone.position[1] / 20.0,
-            drone.position[2] / 50.0,
-            drone.velocity[0] / 10.0,
-            drone.velocity[1] / 3.0,
-            drone.velocity[2] / 10.0,
-            float(np.cos(drone.heading)),
-            float(np.sin(drone.heading)),
-        ]
+        if pos_matrix is None:
+            pos_matrix = np.array([self.drones[a].position for a in agent_ids], dtype=np.float32)
+        vel_matrix = np.array([self.drones[a].velocity for a in agent_ids], dtype=np.float32)
+        headings = np.array([self.drones[a].heading for a in agent_ids], dtype=np.float32)
 
-        # 2. K-Nearest Neighbors (24 floats: 6 neighbors * 4 features)
-        alive_neighbors = [
-            (a_id, d) for a_id, d in self.drones.items()
-            if a_id != agent_id and d.alive
-        ]
+        # 1. Self Kinematics (N, 8)
+        self_feat = np.empty((n_agents, 8), dtype=np.float32)
+        self_feat[:, 0] = pos_matrix[:, 0] / 50.0
+        self_feat[:, 1] = pos_matrix[:, 1] / 20.0
+        self_feat[:, 2] = pos_matrix[:, 2] / 50.0
+        self_feat[:, 3] = vel_matrix[:, 0] / 10.0
+        self_feat[:, 4] = vel_matrix[:, 1] / 3.0
+        self_feat[:, 5] = vel_matrix[:, 2] / 10.0
+        self_feat[:, 6] = np.cos(headings)
+        self_feat[:, 7] = np.sin(headings)
 
-        if alive_neighbors:
-            diffs = np.array([d.position - drone.position for _, d in alive_neighbors], dtype=np.float32)
-            dists = np.linalg.norm(diffs, axis=1)
-            sorted_indices = np.argsort(dists)[:6]
+        # 2. K-Nearest Neighbors (N, 24: 6 neighbors * 4 features)
+        knn_feat = np.zeros((n_agents, 24), dtype=np.float32)
+        knn_feat[:, 3::4] = 1.0  # Default normalized distance = 1.0
 
-            knn_feat: list[float] = []
-            for idx in sorted_indices:
-                dist = float(dists[idx])
-                if dist <= COMM_RADIUS:
-                    rel = diffs[idx] / COMM_RADIUS
-                    knn_feat.extend([float(rel[0]), float(rel[1]), float(rel[2]), dist / COMM_RADIUS])
+        alive_ids = [a_id for a_id, d in self.drones.items() if d.alive]
+        if len(alive_ids) > 1:
+            if alive_ids == agent_ids and dist_matrix is not None:
+                all_alive_pos = pos_matrix
+                d_mat = dist_matrix.copy()
+                np.fill_diagonal(d_mat, np.inf)
+            else:
+                all_alive_pos = np.array([self.drones[a].position for a in alive_ids], dtype=np.float32)
+                d_mat = cdist(pos_matrix, all_alive_pos).astype(np.float32)
+                d_mat[d_mat <= 1e-8] = np.inf
+
+            diffs = all_alive_pos[None, :, :] - pos_matrix[:, None, :]  # (N, M_alive, 3)
+            k_neighbors = min(6, len(alive_ids) - 1)
+            if k_neighbors > 0:
+                if d_mat.shape[1] > k_neighbors:
+                    part_idx = np.argpartition(d_mat, kth=k_neighbors - 1, axis=1)[:, :k_neighbors]
+                    part_d = np.take_along_axis(d_mat, part_idx, axis=1)
+                    order = np.argsort(part_d, axis=1)
+                    sorted_idx = np.take_along_axis(part_idx, order, axis=1)
                 else:
-                    knn_feat.extend([0.0, 0.0, 0.0, 1.0])
+                    sorted_idx = np.argsort(d_mat, axis=1)[:, :k_neighbors]
+
+                for slot in range(k_neighbors):
+                    nbr_idx = sorted_idx[:, slot]
+                    nbr_dist = d_mat[np.arange(n_agents), nbr_idx]
+                    in_comm = nbr_dist <= COMM_RADIUS
+                    nbr_diff = diffs[np.arange(n_agents), nbr_idx] / COMM_RADIUS
+                    base = slot * 4
+                    knn_feat[:, base : base + 3] = np.where(in_comm[:, None], nbr_diff, 0.0)
+                    knn_feat[:, base + 3] = np.where(in_comm, nbr_dist / COMM_RADIUS, 1.0)
+
+        # 3. Vectorized Sensor Cone Vector (N, 24)
+        obj_pos_list: list[np.ndarray] = []
+        obj_type_list: list[float] = []
+        for target in self.targets:
+            if not target.found:
+                obj_pos_list.append(target.position)
+                obj_type_list.append(1.0)
+        for obstacle in self.obstacles:
+            obj_pos_list.append(obstacle.position)
+            obj_type_list.append(2.0)
+        for a_id in alive_ids:
+            obj_pos_list.append(self.drones[a_id].position)
+            obj_type_list.append(3.0)
+
+        if obj_pos_list:
+            obj_positions = np.asarray(obj_pos_list, dtype=np.float32)
+            obj_types = np.asarray(obj_type_list, dtype=np.float32)
+            sensor_feat = self.cone_sensor.detect_and_vectorize_batch(
+                agent_positions=pos_matrix,
+                agent_headings=headings,
+                object_positions=obj_positions,
+                object_type_codes=obj_types,
+            )
         else:
-            knn_feat = []
+            sensor_feat = np.zeros((n_agents, 24), dtype=np.float32)
 
-        while len(knn_feat) < 24:
-            knn_feat.extend([0.0, 0.0, 0.0, 1.0])
+        # 4. Local Exploration Patch (N, 25: 5x5 grid slice)
+        grid_feat = np.empty((n_agents, 25), dtype=np.float32)
+        for i in range(n_agents):
+            local_patch = self.exploration_map.get_local_patch(pos_matrix[i], radius_cells=2)
+            grid_feat[i] = local_patch.ravel()
 
-        # 3. Sensor Cone Vector (24 floats: 8 objects * 3 features)
-        sensor_objs = self._get_sensor_objects(exclude_agent_id=agent_id)
-        detections = self.cone_sensor.detect(drone.position, drone.heading, sensor_objs)
-        sensor_feat = self.cone_sensor.vectorize(detections).tolist()
+        return np.concatenate([self_feat, knn_feat, sensor_feat, grid_feat], axis=1).astype(np.float32)
 
-        # 4. Local Exploration Patch (25 floats: 5x5 grid slice)
-        local_patch = self.exploration_map.get_local_patch(drone.position, radius_cells=2)
-        grid_feat = local_patch.flatten().tolist()
-
-        obs = np.asarray(self_feat + knn_feat + sensor_feat + grid_feat, dtype=np.float32)
-        return obs
+    def _get_observation(self, agent_id: str) -> np.ndarray:
+        return self._compute_observations_batch([agent_id])[0]
 
     def step(
         self,
@@ -276,32 +347,45 @@ class SwarmRLParallelEnv(ParallelEnv):
         # 3. Vectorized pairwise neighbor distances & drone collisions
         min_neighbor_dists: dict[str, Optional[float]] = {a: None for a in active_agents}
         drone_collisions: set[str] = set()
+        pos_matrix: Optional[np.ndarray] = None
+        dist_matrix: Optional[np.ndarray] = None
 
-        if len(active_agents) > 1:
+        if len(active_agents) > 0:
             pos_matrix = np.array([self.drones[a].position for a in active_agents], dtype=np.float32)
-            dist_matrix = cdist(pos_matrix, pos_matrix)
-            np.fill_diagonal(dist_matrix, np.inf)
+            if len(active_agents) > 1:
+                dist_matrix = cdist(pos_matrix, pos_matrix).astype(np.float32)
+                np.fill_diagonal(dist_matrix, np.inf)
 
-            min_dists = np.min(dist_matrix, axis=1)
-            for i, a in enumerate(active_agents):
-                min_neighbor_dists[a] = float(min_dists[i])
+                min_dists = np.min(dist_matrix, axis=1)
+                for i, a in enumerate(active_agents):
+                    min_neighbor_dists[a] = float(min_dists[i])
 
-            collision_indices = np.where(dist_matrix < 2.0)
-            for idx in collision_indices[0]:
-                drone_collisions.add(active_agents[idx])
+                collision_indices = np.where(dist_matrix < 2.0)
+                for idx in collision_indices[0]:
+                    drone_collisions.add(active_agents[idx])
 
-        # 4. Obstacle collisions, boundary violations, and target discovery
+        # 4. Obstacle collisions, boundary violations, and symmetric target discovery
         obstacle_collisions: set[str] = set()
         boundary_violations: set[str] = set()
         targets_found_by_agent: set[str] = set()
-        team_target_found_this_step = False
+        newly_discovered_targets: list[ArenaObject] = []
 
         for agent_id in active_agents:
             pos = self.drones[agent_id].position
 
-            # Boundary checks
-            if not (-50.0 <= pos[0] <= 50.0 and 0.0 <= pos[1] <= 20.0 and -50.0 <= pos[2] <= 50.0):
+            # Boundary checks & collision response
+            if not (
+                WORLD_X_MIN <= pos[0] <= WORLD_X_MAX
+                and WORLD_Y_MIN <= pos[1] <= WORLD_Y_MAX
+                and WORLD_Z_MIN <= pos[2] <= WORLD_Z_MAX
+            ):
                 boundary_violations.add(agent_id)
+                # Boundary collision response: damp velocity and correct position
+                drone = self.drones[agent_id]
+                drone.position[0] = np.clip(drone.position[0], WORLD_X_MIN, WORLD_X_MAX)
+                drone.position[1] = np.clip(drone.position[1], WORLD_Y_MIN, WORLD_Y_MAX)
+                drone.position[2] = np.clip(drone.position[2], WORLD_Z_MIN, WORLD_Z_MAX)
+                drone.velocity *= 0.1
 
             # Obstacle checks
             for obs in self.obstacles:
@@ -309,13 +393,20 @@ class SwarmRLParallelEnv(ParallelEnv):
                     obstacle_collisions.add(agent_id)
                     break
 
-            # Target checks
+            # Symmetric aerial target discovery (horizontal x-z ground footprint <= 3.0m)
             for target in self.targets:
                 if not target.found:
-                    if float(np.linalg.norm(pos - target.position)) <= 3.0:
-                        target.found = True
+                    horiz_dist = float(np.hypot(pos[0] - target.position[0], pos[2] - target.position[2]))
+                    if horiz_dist <= 3.0 and 0.0 <= pos[1] <= 20.0:
                         targets_found_by_agent.add(agent_id)
-                        team_target_found_this_step = True
+                        if target not in newly_discovered_targets:
+                            newly_discovered_targets.append(target)
+
+        for target in newly_discovered_targets:
+            target.found = True
+
+        team_target_found_this_step = len(newly_discovered_targets) > 0
+        all_targets_found = all(t.found for t in self.targets)
 
         # 5. Reward computation & unpack
         rewards: dict[str, float] = {}
@@ -329,44 +420,69 @@ class SwarmRLParallelEnv(ParallelEnv):
             has_drone_coll = agent_id in drone_collisions
             has_obs_coll = agent_id in obstacle_collisions
             has_bound_viol = agent_id in boundary_violations
+            has_found_target = agent_id in targets_found_by_agent
+            agent_min_dist = min_neighbor_dists.get(agent_id)
 
             total_reward, details = calculate_reward(
                 agent_id=agent_id,
                 new_cells=agent_new_cells.get(agent_id, 0),
                 previously_explored=(agent_new_cells.get(agent_id, 0) == 0),
-                target_found=(agent_id in targets_found_by_agent),
+                target_found=has_found_target,
                 drone_collision=has_drone_coll,
                 obstacle_collision=has_obs_coll,
                 boundary_violation=has_bound_viol,
                 config=self.reward_config,
                 team_cells=total_team_cells,
                 team_target_found=team_target_found_this_step,
-                min_neighbor_dist=min_neighbor_dists.get(agent_id),
+                min_neighbor_dist=agent_min_dist,
             )
 
-            rewards[agent_id] = float(total_reward)
-            infos[agent_id] = {"reward_breakdown": details}
+            # Expose raw diagnostic counters alongside weighted reward breakdown
+            details["team_cells"] = int(total_team_cells)
+            details["min_neighbor_dist"] = agent_min_dist
+            details["team_target_found_flag"] = bool(team_target_found_this_step)
 
-            is_terminated = has_drone_coll or has_obs_coll or has_bound_viol
-            if is_terminated:
+            rewards[agent_id] = float(total_reward)
+            infos[agent_id] = {
+                "reward_breakdown": details,
+                "event_flags": {
+                    "drone_collision": has_drone_coll,
+                    "obstacle_collision": has_obs_coll,
+                    "target_found": has_found_target,
+                    "boundary_violation": has_bound_viol,
+                    "team_cells": int(total_team_cells),
+                    "team_target_found": bool(team_target_found_this_step),
+                    "min_neighbor_dist": agent_min_dist,
+                },
+            }
+
+            is_dead = has_drone_coll or has_obs_coll or (has_bound_viol if self.terminate_on_boundary else False)
+            if is_dead:
                 self.drones[agent_id].alive = False
 
-            terminations[agent_id] = is_terminated
-            truncations[agent_id] = is_truncated
+            terminations[agent_id] = bool(is_dead or all_targets_found)
+            truncations[agent_id] = bool(is_truncated)
 
         global_state = self.state() if self.include_global_state else None
+        batch_obs = self._compute_observations_batch(
+            active_agents,
+            pos_matrix=pos_matrix,
+            dist_matrix=dist_matrix,
+        )
         observations = {}
-        for agent in active_agents:
-            local_obs = self._get_observation(agent)
+        for i, agent in enumerate(active_agents):
+            local_obs = batch_obs[i]
             if self.include_global_state:
                 observations[agent] = {"obs": local_obs, "state": global_state}
             else:
                 observations[agent] = local_obs
 
         # Update remaining active agents
-        self.agents = [a for a in self.agents if self.drones[a].alive and not is_truncated]
+        self.agents = [
+            a for a in self.agents
+            if self.drones[a].alive and not is_truncated and not all_targets_found
+        ]
 
-        all_targets_found = all(t.found for t in self.targets)
         all_drones_dead = all(not self.drones[a].alive for a in self.possible_agents)
         terminations["__all__"] = bool(all_drones_dead or all_targets_found)
         truncations["__all__"] = bool(is_truncated)
