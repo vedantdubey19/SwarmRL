@@ -29,6 +29,7 @@ SwarmRL/
 ├── env.py                       # 50-agent PettingZoo ParallelEnv
 ├── rllib_config.py              # Ray RLlib MAPPO configuration
 ├── train_audit_trial1.py        # MAPPO baseline training harness
+├── train.py                     # RLlib PPO training driver with checkpointing
 ├── server.js                    # Node.js 50-drone WebSocket relay broker
 ├── schema.js                    # Telemetry frame schema validation
 ├── sensors/                     # Sensor simulation & reward engine
@@ -39,7 +40,7 @@ SwarmRL/
 │   └── telemetry.py             # Metrics & telemetry payload builder
 ├── frontend/                    # Three.js / React-Three-Fiber 3D viewport
 ├── tests/                       # Unit & integration test suites
-└── docs/                        # Architecture & interface specifications
+└── docs/                        # Architecture & interface specifications (env_spec.md is the env reference)
 ```
 
 ## Getting started
