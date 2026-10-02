@@ -10,8 +10,5 @@ __pycache__/
 .pytest_cache/
 *.py[cod]
 
-# Training
-training/
-
 # OS
 .DS_Store
