@@ -19,8 +19,8 @@ The project is designed to be extended with:
 - **Agent Count:** 50 homogeneous drones (`drone_0` through `drone_49`) performing collaborative Search-and-Rescue (SAR).
 - **Environment Interface:** PettingZoo `ParallelEnv` (`SwarmRLParallelEnv` in `env.py`).
 - **RLlib / MAPPO Target:** Supports Centralized Training with Decentralized Execution (CTDE). Each agent receives an 81-dimensional local observation vector, while the centralized value network consumes a 471-dimensional global state vector (`Box(471,)`).
-- **Sensors & Rewards Integration:** Integrates with `sensors/rewards.py` (`calculate_reward`), `sensors/events.py` (`build_event_flags`), `sensors/sensors.py` (`ConeSensor`), and `sensors/exploration.py` (`ExplorationMap`). Step rewards are unpacked as `(total_reward: float, details: dict)` and exposed under `infos[agent_id]["reward_breakdown"]`.
-- **WebSocket Relay Integration:** Emits atomic 50-drone telemetry frames (`type: "frame"`) to Node.js broker (`server.js`) on port 8080, which are relayed to the Three.js / React-Three-Fiber 3D viewport at 60 FPS using smooth lerp/slerp interpolation.
+- **Sensors & Rewards Integration:** `env.py` uses `sensors/rewards.py` (`calculate_reward`), `sensors/sensors.py` (`ConeSensor`) and `sensors/exploration.py` (`ExplorationMap`). It computes collision, boundary and target event flags inline in `step()`. It does **not** call `sensors/events.py`'s `build_event_flags`, which duplicates the same thresholds (2.0 / 1.0 / 3.0 m) but is unused by the env. Step rewards are unpacked as `(total_reward: float, details: dict)` and exposed under `infos[agent_id]["reward_breakdown"]`.
+- **WebSocket Relay Integration:** `server.js` relays 50-drone telemetry frames on port 8080 to the Three.js / React-Three-Fiber viewport, which interpolates with lerp/slerp. **The env is not connected to it yet:** no Python code publishes `env.py` state to the relay. The only feed is `mock-env-feed.js`, which sends random positions in a different frame (altitude on Z, X/Y in 0–100). See `docs/env_spec.md` §2 for the env's coordinate frame.
 
 ## Repository structure
 
