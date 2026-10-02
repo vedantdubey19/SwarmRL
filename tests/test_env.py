@@ -2,7 +2,16 @@ import time
 import numpy as np
 import pytest
 
-from env import SwarmRLParallelEnv, DEFAULT_NUM_AGENTS
+from env import (
+    DEFAULT_NUM_AGENTS,
+    EXPLORATION_CELL_SIZE,
+    MAX_HORIZ_VEL,
+    MAX_VERT_VEL,
+    WORLD_X_MAX,
+    WORLD_Y_MAX,
+    WORLD_Z_MAX,
+    SwarmRLParallelEnv,
+)
 
 
 def test_env_initialization():
@@ -66,11 +75,9 @@ def test_env_step_contract_and_reward_unpack():
                 assert next_obs[agent_id].shape == (81,)
                 assert next_obs[agent_id].dtype == np.float32
 
-    # RLlib MultiAgentEnv contract requires __all__ in terminations and truncations
-    assert "__all__" in terminations
-    assert isinstance(terminations["__all__"], bool)
-    assert "__all__" in truncations
-    assert isinstance(truncations["__all__"], bool)
+    # Raw PettingZoo contract: keyed by agent only. RLlib's wrapper adds __all__ itself.
+    assert set(terminations) == set(actions)
+    assert set(truncations) == set(actions)
 
 
 def test_rllib_dict_observation_mode():
@@ -169,7 +176,7 @@ def test_all_targets_found_terminates_all_active_agents():
     actions = {a: np.zeros(4, dtype=np.float32) for a in env.agents}
     _, _, terminations, _, _ = env.step(actions)
 
-    assert terminations["__all__"] is True
+    assert len(terminations) == 10
     for agent_id, term in terminations.items():
         assert term is True, f"Agent {agent_id} should terminate when all_targets_found is True"
     assert len(env.agents) == 0
@@ -195,7 +202,7 @@ def test_random_actions_n_steps_bounds_and_shapes():
             assert 0.0 <= drone.position[1] <= 20.0
             assert -50.0 <= drone.position[2] <= 50.0
 
-        if terminations.get("__all__", False) or truncations.get("__all__", False):
+        if not env.agents:
             break
 
 
@@ -238,7 +245,8 @@ def test_edge_case_zero_active_agents():
     obs, rewards, terminations, truncations, infos = env.step({})
     assert len(obs) == 0
     assert len(rewards) == 0
-    assert terminations["__all__"] is True
+    assert terminations == {}
+    assert truncations == {}
     assert len(env.agents) == 0
 
 
@@ -294,4 +302,45 @@ def test_edge_case_max_velocity_actions_every_step():
             assert -50.0 <= d.position[2] <= 50.0
 
 
+def test_world_is_fixed_size():
+    with pytest.raises(TypeError):
+        SwarmRLParallelEnv(num_agents=5, world_size=(500.0, 500.0))
 
+    env = SwarmRLParallelEnv(num_agents=5)
+    assert (env.exploration_map.width, env.exploration_map.height) == (50, 50)
+    assert env.exploration_map.config.cell_size == EXPLORATION_CELL_SIZE == 2.0
+
+
+def test_observation_and_state_normalization_follow_world_constants():
+    env = SwarmRLParallelEnv(num_agents=5)
+    env.reset(seed=3)
+    drone = env.drones["drone_0"]
+    drone.position = np.array([25.0, 10.0, -40.0], dtype=np.float32)
+    drone.velocity = np.array([5.0, -1.5, 2.0], dtype=np.float32)
+
+    obs = env._get_observation("drone_0")
+    expected = [25.0 / WORLD_X_MAX, 10.0 / WORLD_Y_MAX, -40.0 / WORLD_Z_MAX,
+                5.0 / MAX_HORIZ_VEL, -1.5 / MAX_VERT_VEL, 2.0 / MAX_HORIZ_VEL]
+    np.testing.assert_allclose(obs[:6], expected, rtol=1e-6)
+    np.testing.assert_allclose(env.state()[:6], expected, rtol=1e-6)
+
+
+@pytest.mark.filterwarnings("error")
+def test_pettingzoo_parallel_api_without_warnings():
+    from pettingzoo.test import parallel_api_test, parallel_seed_test
+
+    parallel_api_test(SwarmRLParallelEnv(num_agents=DEFAULT_NUM_AGENTS), num_cycles=200)
+    parallel_seed_test(lambda: SwarmRLParallelEnv(num_agents=DEFAULT_NUM_AGENTS))
+
+
+def test_rllib_wrapper_supplies_all_key():
+    pytest.importorskip("ray.rllib")
+    from ray.rllib.env.wrappers.pettingzoo_env import ParallelPettingZooEnv
+
+    env = ParallelPettingZooEnv(SwarmRLParallelEnv(num_agents=10, max_steps=3))
+    env.reset(seed=0)
+    actions = {f"drone_{i}": np.zeros(4, dtype=np.float32) for i in range(10)}
+    for _ in range(3):
+        _, _, terminations, truncations, _ = env.step(actions)
+    assert terminations["__all__"] is False
+    assert truncations["__all__"] is True

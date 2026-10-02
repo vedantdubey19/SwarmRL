@@ -167,7 +167,7 @@ def run_training_trial(num_iterations=12, steps_per_iter=1000):
                     iter_bound_viols += 1
 
             obs_dict = next_obs_dict
-            if terms.get("__all__") or truncs.get("__all__"):
+            if not env.agents:
                 obs_dict, _ = env.reset()
 
         # Advantage & Returns computation (GAE)

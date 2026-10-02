@@ -24,6 +24,7 @@ WORLD_Y_MIN: float = 0.0
 WORLD_Y_MAX: float = 20.0
 WORLD_Z_MIN: float = -50.0
 WORLD_Z_MAX: float = 50.0
+EXPLORATION_CELL_SIZE = 2.0
 
 
 @dataclass
@@ -51,7 +52,6 @@ class SwarmRLParallelEnv(ParallelEnv):
         num_agents: int = DEFAULT_NUM_AGENTS,
         max_steps: int = 1000,
         dt: float = 0.05,
-        world_size: tuple[float, float] = (100.0, 100.0),
         reward_config: Optional[RewardConfig] = None,
         sensor_config: Optional[SensorConfig] = None,
         include_global_state: bool = False,
@@ -61,7 +61,6 @@ class SwarmRLParallelEnv(ParallelEnv):
         self.swarm_size = num_agents
         self.max_steps = max_steps
         self.dt = dt
-        self.world_size = world_size
         self.reward_config = reward_config or RewardConfig()
         self.sensor_config = sensor_config or SensorConfig(range=20.0, field_of_view=np.pi / 2.0)
         self.include_global_state = include_global_state
@@ -70,8 +69,8 @@ class SwarmRLParallelEnv(ParallelEnv):
         self.cone_sensor = ConeSensor(self.sensor_config)
         self.exploration_map = ExplorationMap(
             config=ExplorationConfig(
-                world_size=self.world_size,
-                cell_size=2.0,
+                world_size=(WORLD_X_MAX - WORLD_X_MIN, WORLD_Z_MAX - WORLD_Z_MIN),
+                cell_size=EXPLORATION_CELL_SIZE,
                 exploration_radius=2.0,
             )
         )
@@ -229,12 +228,12 @@ class SwarmRLParallelEnv(ParallelEnv):
 
         # 1. Self Kinematics (N, 8)
         self_feat = np.empty((n_agents, 8), dtype=np.float32)
-        self_feat[:, 0] = pos_matrix[:, 0] / 50.0
-        self_feat[:, 1] = pos_matrix[:, 1] / 20.0
-        self_feat[:, 2] = pos_matrix[:, 2] / 50.0
-        self_feat[:, 3] = vel_matrix[:, 0] / 10.0
-        self_feat[:, 4] = vel_matrix[:, 1] / 3.0
-        self_feat[:, 5] = vel_matrix[:, 2] / 10.0
+        self_feat[:, 0] = pos_matrix[:, 0] / WORLD_X_MAX
+        self_feat[:, 1] = pos_matrix[:, 1] / WORLD_Y_MAX
+        self_feat[:, 2] = pos_matrix[:, 2] / WORLD_Z_MAX
+        self_feat[:, 3] = vel_matrix[:, 0] / MAX_HORIZ_VEL
+        self_feat[:, 4] = vel_matrix[:, 1] / MAX_VERT_VEL
+        self_feat[:, 5] = vel_matrix[:, 2] / MAX_HORIZ_VEL
         self_feat[:, 6] = np.cos(headings)
         self_feat[:, 7] = np.sin(headings)
 
@@ -397,7 +396,7 @@ class SwarmRLParallelEnv(ParallelEnv):
             for target in self.targets:
                 if not target.found:
                     horiz_dist = float(np.hypot(pos[0] - target.position[0], pos[2] - target.position[2]))
-                    if horiz_dist <= 3.0 and 0.0 <= pos[1] <= 20.0:
+                    if horiz_dist <= 3.0 and WORLD_Y_MIN <= pos[1] <= WORLD_Y_MAX:
                         targets_found_by_agent.add(agent_id)
                         if target not in newly_discovered_targets:
                             newly_discovered_targets.append(target)
@@ -483,10 +482,6 @@ class SwarmRLParallelEnv(ParallelEnv):
             if self.drones[a].alive and not is_truncated and not all_targets_found
         ]
 
-        all_drones_dead = all(not self.drones[a].alive for a in self.possible_agents)
-        terminations["__all__"] = bool(all_drones_dead or all_targets_found)
-        truncations["__all__"] = bool(is_truncated)
-
         return observations, rewards, terminations, truncations, infos
 
     def state(self) -> np.ndarray:
@@ -497,12 +492,12 @@ class SwarmRLParallelEnv(ParallelEnv):
             if agent_id in self.drones and self.drones[agent_id].alive:
                 d = self.drones[agent_id]
                 state_vector.extend([
-                    d.position[0] / 50.0,
-                    d.position[1] / 20.0,
-                    d.position[2] / 50.0,
-                    d.velocity[0] / 10.0,
-                    d.velocity[1] / 3.0,
-                    d.velocity[2] / 10.0,
+                    d.position[0] / WORLD_X_MAX,
+                    d.position[1] / WORLD_Y_MAX,
+                    d.position[2] / WORLD_Z_MAX,
+                    d.velocity[0] / MAX_HORIZ_VEL,
+                    d.velocity[1] / MAX_VERT_VEL,
+                    d.velocity[2] / MAX_HORIZ_VEL,
                     float(np.cos(d.heading)),
                     float(np.sin(d.heading)),
                     1.0,
@@ -512,9 +507,9 @@ class SwarmRLParallelEnv(ParallelEnv):
 
         for target in self.targets:
             state_vector.extend([
-                target.position[0] / 50.0,
-                target.position[1] / 20.0,
-                target.position[2] / 50.0,
+                target.position[0] / WORLD_X_MAX,
+                target.position[1] / WORLD_Y_MAX,
+                target.position[2] / WORLD_Z_MAX,
                 1.0 if target.found else 0.0,
             ])
 

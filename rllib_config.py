@@ -13,7 +13,6 @@ def env_creator(env_config: Optional[dict[str, Any]] = None) -> SwarmRLParallelE
         num_agents=cfg.get("num_agents", DEFAULT_NUM_AGENTS),
         max_steps=cfg.get("max_steps", 1000),
         dt=cfg.get("dt", 0.05),
-        world_size=cfg.get("world_size", (100.0, 100.0)),
         include_global_state=cfg.get("include_global_state", False),
     )
 
@@ -144,7 +143,21 @@ def build_training_config(include_global_state: bool = True):
         .framework("torch")
         .debugging(log_level="INFO")
         .checkpointing()
-        .env_runners(num_env_runners=2)
+        .env_runners(
+            num_env_runners=2,
+            num_envs_per_env_runner=1,
+            rollout_fragment_length=100,
+        )
+        .training(
+            lr=3e-4,
+            gamma=0.99,
+            lambda_=0.95,
+            clip_param=0.2,
+            train_batch_size=4000,
+            minibatch_size=256,
+            num_epochs=10,
+            entropy_coeff=0.01,
+        )
         .multi_agent(
             policies={
                 "shared_policy": (None, obs_space, act_space, policy_Spec_config),
