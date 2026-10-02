@@ -26,6 +26,7 @@ export const useSwarmStore = create((set, get) => ({
   metrics: null,
   lastStep: -1,
   lastTimestamp: 0,
+  lastLatencyMs: null,
   _socket: null,
 
   setSelectedDroneId: (id) => set({ selectedDroneId: id }),
@@ -103,6 +104,7 @@ export const useSwarmStore = create((set, get) => ({
             set({
               lastStep: typeof data.step === 'number' ? data.step : lastStep,
               lastTimestamp: typeof data.timestamp === 'number' ? data.timestamp : lastTimestamp,
+              lastLatencyMs: typeof data.timestamp === 'number' ? Math.max(0, Date.now() - data.timestamp) : null,
               metrics: data.metrics || null,
               ...(idsChanged ? { droneIds: incomingIds } : {}),
             });
