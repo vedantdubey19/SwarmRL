@@ -20,7 +20,7 @@ The project is designed to be extended with:
 - **Environment Interface:** PettingZoo `ParallelEnv` (`SwarmRLParallelEnv` in `env.py`).
 - **RLlib / MAPPO Target:** Supports Centralized Training with Decentralized Execution (CTDE). Each agent receives an 81-dimensional local observation vector, while the centralized value network consumes a 471-dimensional global state vector (`Box(471,)`).
 - **Sensors & Rewards Integration:** `env.py` uses `sensors/rewards.py` (`calculate_reward`), `sensors/sensors.py` (`ConeSensor`) and `sensors/exploration.py` (`ExplorationMap`). It computes collision, boundary and target event flags inline in `step()`. It does **not** call `sensors/events.py`'s `build_event_flags`, which duplicates the same thresholds (2.0 / 1.0 / 3.0 m) but is unused by the env. Step rewards are unpacked as `(total_reward: float, details: dict)` and exposed under `infos[agent_id]["reward_breakdown"]`.
-- **WebSocket Relay Integration:** `server.js` relays 50-drone telemetry frames on port 8080 to the Three.js / React-Three-Fiber viewport, which interpolates with lerp/slerp. **The env is not connected to it yet:** no Python code publishes `env.py` state to the relay. The only feed is `mock-env-feed.js`, which sends random positions in a different frame (altitude on Z, X/Y in 0–100). See `docs/env_spec.md` §2 for the env's coordinate frame.
+- **WebSocket Relay Integration:** `server.js` relays 50-drone telemetry frames on port 8080 to the Three.js / React-Three-Fiber viewport, which interpolates with lerp/slerp. `sensors/bridge.py` provides the Python bridge (`build_telemetry_frame_from_env`) converting physical simulation steps into wire-compliant telemetry frames conforming to `schema.js` and `docs/websocket_streaming_protocol.md`.
 
 ## Repository structure
 
@@ -33,6 +33,7 @@ SwarmRL/
 ├── server.js                    # Node.js 50-drone WebSocket relay broker
 ├── schema.js                    # Telemetry frame schema validation
 ├── sensors/                     # Sensor simulation & reward engine
+│   ├── bridge.py                # Python-to-WebSocket telemetry frame bridge
 │   ├── sensors.py               # ConeSensor (90° FoV, 20m range)
 │   ├── rewards.py               # 7-component reward function
 │   ├── events.py                # Collision, boundary & target detection
