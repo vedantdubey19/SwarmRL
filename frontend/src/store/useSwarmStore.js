@@ -1,86 +1,75 @@
 import { create } from 'zustand';
 
-function getWebSocketEndpoint() {
-  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_WS_URL) {
-    return import.meta.env.VITE_WS_URL;
-  }
-  if (typeof process !== 'undefined' && process.env && process.env.VITE_WS_URL) {
-    return process.env.VITE_WS_URL;
-  }
-  if (typeof window !== 'undefined' && window.location) {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${protocol}//${window.location.hostname}:8080`;
-  }
-  return 'ws://localhost:8080';
-}
+// Elevation equation matching Terrain.jsx
+const getElevation = (x, z) => {
+  return (
+    Math.sin(x * 0.08) * Math.cos(z * 0.08) * 3.5 +
+    Math.sin(x * 0.03 + 1.2) * Math.cos(z * 0.03 + 0.8) * 4.0
+  );
+};
 
-export const useSwarmStore = create((set, get) => ({
+export const useSwarmStore = create((set) => ({
   drones: {},
   selectedDroneId: null,
-  cameraMode: 'orbit',
-  isConnected: false,
-  metrics: null,
-  _socket: null,
+  cameraMode: 'orbit', // 'orbit' | 'follow'
+  showCollisionDebug: true,
+  totalCollisions: 0,
 
   updateDroneBatch: (batch) =>
     set((state) => {
       const updated = { ...state.drones };
+      let stepCollisions = 0;
+
       batch.forEach((drone) => {
         updated[drone.id] = { ...drone };
+        if (drone.collision) stepCollisions++;
       });
-      return { drones: updated };
+
+      return {
+        drones: updated,
+        totalCollisions: state.totalCollisions + Math.floor(stepCollisions / 2),
+      };
+    }),
+
+  // Day 09: Stress-test action generating 50 randomized drone coordinates
+  randomizeSwarmPositions: (count = 50) =>
+    set((state) => {
+      const updated = {};
+      const agents = [];
+
+      for (let i = 0; i < count; i++) {
+        const id = `agent-${String(i + 1).padStart(2, '0')}`;
+        const x = Number(((Math.random() - 0.5) * 80).toFixed(2));
+        const z = Number(((Math.random() - 0.5) * 80).toFixed(2));
+        const terrainY = getElevation(x, z);
+        const y = Number((terrainY + 3.5 + Math.random() * 5.0).toFixed(2));
+        const yaw = Number((Math.random() * Math.PI * 2).toFixed(2));
+
+        agents.push({ id, x, y, z, yaw, collision: false, timestamp: Date.now() });
+      }
+
+      // Check proximity collisions among randomized positions
+      let collisionCount = 0;
+      for (let i = 0; i < agents.length; i++) {
+        for (let j = i + 1; j < agents.length; j++) {
+          const dx = agents[i].x - agents[j].x;
+          const dz = agents[i].z - agents[j].z;
+          if (Math.sqrt(dx * dx + dz * dz) < 2.5) {
+            agents[i].collision = true;
+            agents[j].collision = true;
+            collisionCount++;
+          }
+        }
+        updated[agents[i].id] = agents[i];
+      }
+
+      return {
+        drones: updated,
+        totalCollisions: state.totalCollisions + collisionCount,
+      };
     }),
 
   setSelectedDroneId: (id) => set({ selectedDroneId: id }),
   setCameraMode: (mode) => set({ cameraMode: mode }),
-
-  connectWebSocket: (customUrl) => {
-    const endpoint = customUrl || getWebSocketEndpoint();
-    const currentSocket = get()._socket;
-    if (currentSocket && (currentSocket.readyState === 0 || currentSocket.readyState === 1)) {
-      return;
-    }
-
-    try {
-      const ws = new WebSocket(endpoint);
-
-      ws.onopen = () => {
-        set({ isConnected: true, _socket: ws });
-        ws.send(JSON.stringify({ type: 'register', role: 'subscriber' }));
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === 'frame' && Array.isArray(data.drones)) {
-            const nextDrones = {};
-            data.drones.forEach((drone) => {
-              nextDrones[drone.id] = drone;
-            });
-            set({ drones: nextDrones, metrics: data.metrics || null });
-          } else if (data.type === 'batch_update' && Array.isArray(data.agents)) {
-            const nextDrones = {};
-            data.agents.forEach((agent) => {
-              nextDrones[agent.id] = agent;
-            });
-            set({ drones: nextDrones });
-          }
-        } catch (err) {
-          console.error('Failed to parse telemetry message:', err);
-        }
-      };
-
-      ws.onclose = () => {
-        set({ isConnected: false, _socket: null });
-      };
-
-      ws.onerror = (err) => {
-        console.error('WebSocket telemetry error:', err);
-      };
-
-      set({ _socket: ws });
-    } catch (err) {
-      console.error('Failed to initialize WebSocket client:', err);
-    }
-  },
+  toggleCollisionDebug: () => set((state) => ({ showCollisionDebug: !state.showCollisionDebug })),
 }));
