@@ -8,11 +8,12 @@ import {
   WifiOff,
   AlertTriangle,
   ShieldAlert,
-  Shuffle,
+  Activity,
+  Layers,
 } from 'lucide-react';
 import CameraRig from './components/CameraRig';
-import SwarmManager from './components/SwarmManager';
 import Terrain from './components/Terrain';
+import SwarmPipeline from './components/SwarmPipeline';
 import { useSwarmStore } from './store/useSwarmStore';
 import { useSwarmWebSocket } from './hooks/useSwarmWebSocket';
 
@@ -32,8 +33,8 @@ function SimulationCanvas() {
       {/* 3D Topographical Map */}
       <Terrain size={120} segments={64} />
 
-      {/* 50 Dynamic Agents */}
-      <SwarmManager />
+      {/* Refactored Real-Data Telemetry Pipeline */}
+      <SwarmPipeline />
 
       <CameraRig />
     </>
@@ -51,7 +52,7 @@ export default function App() {
     totalCollisions,
     showCollisionDebug,
     toggleCollisionDebug,
-    randomizeSwarmPositions,
+    packetCount,
   } = useSwarmStore();
 
   const activeDroneCount = Object.keys(drones).length;
@@ -59,16 +60,16 @@ export default function App() {
 
   return (
     <div className="relative w-screen h-screen select-none bg-[#080c14]">
-      {/* Top Left Status HUD */}
+      {/* Top Left HUD */}
       <header className="absolute top-4 left-4 z-10 flex items-center gap-3 bg-slate-900/90 backdrop-blur border border-slate-700/60 px-4 py-2.5 rounded-lg text-white shadow-xl">
         <Radio className="w-5 h-5 text-emerald-400 animate-pulse" />
         <div>
           <h1 className="text-sm font-semibold tracking-wide">SwarmRL Telemetry Viewport</h1>
-          <p className="text-xs text-slate-400">Day 09: Randomized Drone Rendering Tests</p>
+          <p className="text-xs text-slate-400">Day 10: Real-Data Pipeline Refactored (Milestone 2)</p>
         </div>
       </header>
 
-      {/* Top Right Controls & Metrics */}
+      {/* Top Right HUD Metrics */}
       <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
         <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-700/60 px-3 py-2 rounded text-xs text-slate-300">
           {isConnected ? (
@@ -77,6 +78,11 @@ export default function App() {
             <WifiOff className="w-4 h-4 text-rose-500 animate-bounce" />
           )}
           <span>{isConnected ? `STREAM (${lastLatencyMs}ms)` : 'DISCONNECTED'}</span>
+        </div>
+
+        <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-700/60 px-3 py-2 rounded text-xs text-slate-300">
+          <Activity className="w-4 h-4 text-sky-400" />
+          <span>Packets: {packetCount}</span>
         </div>
 
         {/* Collision Penalty Indicator */}
@@ -90,16 +96,6 @@ export default function App() {
           <AlertTriangle className="w-4 h-4 text-rose-400" />
           <span>Collisions: {totalCollisions} (-{totalCollisions * 100} pts)</span>
         </div>
-
-        {/* Randomize Positions Button (Day 09 Test) */}
-        <button
-          onClick={() => randomizeSwarmPositions(50)}
-          className="flex items-center gap-1.5 bg-slate-900/80 hover:bg-slate-800 text-xs text-sky-300 border border-sky-600/60 px-3 py-2 rounded shadow transition-colors"
-          title="Randomize positions across map to test rendering and collisions"
-        >
-          <Shuffle className="w-4 h-4" />
-          Randomize
-        </button>
 
         {/* Debug Wire Toggle */}
         <button
@@ -124,7 +120,7 @@ export default function App() {
         </button>
       </div>
 
-      {/* Bottom Drone Focus Selector */}
+      {/* Focus Selector */}
       <div className="absolute bottom-4 left-4 z-10 flex items-center gap-2 bg-slate-900/90 backdrop-blur border border-slate-800 p-2 rounded-lg text-xs text-slate-300">
         <Crosshair className="w-4 h-4 text-sky-400" />
         <span>Focus Agent:</span>
