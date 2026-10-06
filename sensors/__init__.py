@@ -1,3 +1,10 @@
+from sensors.report import (
+    TelemetryReport,
+    TelemetryReportError,
+    build_and_export_telemetry_report,
+    build_telemetry_report,
+    export_telemetry_report,
+)
 from sensors.audit import (
     AuditReport,
     build_audit_report,
