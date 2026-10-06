@@ -1,3 +1,8 @@
+from sensors.health import (
+    TelemetryHealthChecker,
+    TelemetryHealthError,
+    TelemetryHealthResult,
+)
 from sensors.report import (
     TelemetryReport,
     TelemetryReportError,
