@@ -1,10 +1,11 @@
 const WebSocket = require('ws');
+const { getWsUrl } = require('./config');
 
 const NUM_AGENTS = 50;
 const STEP_INTERVAL_MS = 200;
 const TEST_DURATION_MS = 30000; // run for 30s sustained load
 
-const ws = new WebSocket('ws://localhost:8080');
+const ws = new WebSocket(getWsUrl());
 
 let agents = [];
 let stepCount = 0;
