@@ -7,14 +7,21 @@ const {
   isValidAgentMessage,
 } = require('./schema');
 
-const PORT = process.env.PORT || 8080;
+const { WS_HOST, WS_PORT } = require('./config');
+
+const PORT = WS_PORT;
+const HOST = WS_HOST;
 
 const clients = new Set();
 const publishers = new Set();
 const subscribers = new Set();
 
-function createServer(port = PORT) {
-  const wss = new WebSocket.Server({ port });
+function createServer(port = PORT, host = HOST) {
+  const serverOptions = { port };
+  if (host && host !== '0.0.0.0') {
+    serverOptions.host = host;
+  }
+  const wss = new WebSocket.Server(serverOptions);
 
   wss.on('connection', (socket, req) => {
     clients.add(socket);
@@ -105,9 +112,10 @@ function createServer(port = PORT) {
 }
 
 if (require.main === module) {
-  const server = createServer(PORT);
+  const server = createServer(PORT, HOST);
   server.on('listening', () => {
-    console.log(`WebSocket server listening on ws://localhost:${PORT}`);
+    const displayHost = HOST || 'localhost';
+    console.log(`WebSocket server listening on ws://${displayHost}:${PORT}`);
   });
 
   server.on('error', (err) => {

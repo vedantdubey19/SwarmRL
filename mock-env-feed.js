@@ -1,5 +1,6 @@
 const WebSocket = require('ws');
 const { createTelemetryFrame } = require('./schema');
+const { getWsUrl } = require('./config');
 
 const NUM_AGENTS = 50;
 const STEP_INTERVAL_MS = 200;
@@ -71,7 +72,7 @@ function computeObservationFeatures(agentList) {
 }
 
 function connect() {
-  ws = new WebSocket('ws://localhost:8080');
+  ws = new WebSocket(getWsUrl());
 
   ws.on('open', () => {
     console.log('Mock env feed connected.');

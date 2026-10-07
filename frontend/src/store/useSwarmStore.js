@@ -2,17 +2,39 @@ import { create } from 'zustand';
 import * as THREE from 'three';
 
 function getWebSocketEndpoint() {
-  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_WS_URL) {
-    return import.meta.env.VITE_WS_URL;
+  if (typeof import.meta !== 'undefined' && import.meta.env) {
+    if (import.meta.env.VITE_WS_URL) return import.meta.env.VITE_WS_URL;
+    if (import.meta.env.WS_URL) return import.meta.env.WS_URL;
   }
-  if (typeof process !== 'undefined' && process.env && process.env.VITE_WS_URL) {
-    return process.env.VITE_WS_URL;
+  if (typeof process !== 'undefined' && process.env) {
+    if (process.env.VITE_WS_URL) return process.env.VITE_WS_URL;
+    if (process.env.WS_URL) return process.env.WS_URL;
   }
-  if (typeof window !== 'undefined' && window.location && window.location.host) {
+
+  const defaultPort =
+    (typeof import.meta !== 'undefined' && import.meta.env && (import.meta.env.VITE_WS_PORT || import.meta.env.WS_PORT)) ||
+    (typeof process !== 'undefined' && process.env && (process.env.VITE_WS_PORT || process.env.WS_PORT)) ||
+    8080;
+
+  if (typeof window !== 'undefined' && window.location) {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${protocol}//${window.location.host}`;
+    const isDev = Boolean(
+      (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.DEV) ||
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1'
+    );
+
+    if (isDev && window.location.port !== String(defaultPort)) {
+      const devHost = window.location.hostname || 'localhost';
+      return `${protocol}//${devHost}:${defaultPort}`;
+    }
+
+    if (window.location.host) {
+      return `${protocol}//${window.location.host}`;
+    }
   }
-  return 'ws://127.0.0.1:8080';
+
+  return `ws://localhost:${defaultPort}`;
 }
 
 const telemetryMap = new Map();
