@@ -1,3 +1,9 @@
+from sensors.archive import (
+    TelemetryArchive,
+    TelemetryArchiveError,
+    create_telemetry_archive,
+    verify_telemetry_archive,
+)
 from sensors.health import (
     TelemetryHealthChecker,
     TelemetryHealthError,
