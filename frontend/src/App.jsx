@@ -1,9 +1,19 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Canvas } from '@react-three/fiber';
-import { Radio, Eye, Crosshair, Wifi, WifiOff, Activity } from 'lucide-react';
+import {
+  Radio,
+  Eye,
+  Crosshair,
+  Wifi,
+  WifiOff,
+  AlertTriangle,
+  ShieldAlert,
+  Activity,
+  Layers,
+} from 'lucide-react';
 import CameraRig from './components/CameraRig';
-import SwarmManager from './components/SwarmManager';
 import Terrain from './components/Terrain';
+import SwarmPipeline from './components/SwarmPipeline';
 import { useSwarmStore } from './store/useSwarmStore';
 
 function SimulationCanvas() {
@@ -19,11 +29,11 @@ function SimulationCanvas() {
       />
       <hemisphereLight skyColor="#38bdf8" groundColor="#080c14" intensity={0.4} />
 
-      {/* Procedural 3D Terrain */}
+      {/* 3D Topographical Map */}
       <Terrain size={120} segments={64} />
 
-      {/* Real Swarm Manager Rendering Active Telemetry */}
-      <SwarmManager />
+      {/* Refactored Real-Data Telemetry Pipeline */}
+      <SwarmPipeline />
 
       <CameraRig />
     </>
@@ -52,40 +62,75 @@ function StreamStatus() {
 }
 
 export default function App() {
-  const isConnected = useSwarmStore((s) => s.isConnected);
-  const connectWebSocket = useSwarmStore((s) => s.connectWebSocket);
-  const droneIds = useSwarmStore((s) => s.droneIds);
-  const cameraMode = useSwarmStore((s) => s.cameraMode);
-  const setCameraMode = useSwarmStore((s) => s.setCameraMode);
-  const selectedDroneId = useSwarmStore((s) => s.selectedDroneId);
-  const setSelectedDroneId = useSwarmStore((s) => s.setSelectedDroneId);
+  const { isConnected, lastLatencyMs } = useSwarmWebSocket('ws://localhost:8765');
+  const {
+    cameraMode,
+    setCameraMode,
+    selectedDroneId,
+    setSelectedDroneId,
+    drones,
+    totalCollisions,
+    showCollisionDebug,
+    toggleCollisionDebug,
+    packetCount,
+  } = useSwarmStore();
 
-  useEffect(() => {
-    connectWebSocket();
-  }, [connectWebSocket]);
+  const activeDroneCount = Object.keys(drones).length;
+  const activeCollisions = Object.values(drones).filter((d) => d.collision).length;
 
   return (
     <div className="relative w-screen h-screen select-none bg-[#080c14]">
-      {/* Top Left Status HUD */}
+      {/* Top Left HUD */}
       <header className="absolute top-4 left-4 z-10 flex items-center gap-3 bg-slate-900/90 backdrop-blur border border-slate-700/60 px-4 py-2.5 rounded-lg text-white shadow-xl">
-        <Radio className={`w-5 h-5 ${isConnected ? 'text-emerald-400' : 'text-amber-400'} animate-pulse`} />
+        <Radio className="w-5 h-5 text-emerald-400 animate-pulse" />
         <div>
           <h1 className="text-sm font-semibold tracking-wide">SwarmRL Telemetry Viewport</h1>
-          <p className="text-xs text-slate-400">
-            {isConnected ? 'Live WebSocket Telemetry Stream (25-30 Hz)' : 'Connecting to Telemetry Relay...'}
-          </p>
+          <p className="text-xs text-slate-400">Day 10: Real-Data Pipeline Refactored (Milestone 2)</p>
         </div>
       </header>
 
-      {/* Stream Metrics HUD */}
+      {/* Top Right HUD Metrics */}
       <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
-        <StreamStatus />
+        <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-700/60 px-3 py-2 rounded text-xs text-slate-300">
+          {isConnected ? (
+            <Wifi className="w-4 h-4 text-emerald-400" />
+          ) : (
+            <WifiOff className="w-4 h-4 text-rose-500 animate-bounce" />
+          )}
+          <span>{isConnected ? `STREAM (${lastLatencyMs}ms)` : 'DISCONNECTED'}</span>
+        </div>
 
         <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-700/60 px-3 py-2 rounded text-xs text-slate-300">
           <Activity className="w-4 h-4 text-sky-400" />
-          <span>Swarm Count: {droneIds.length > 0 ? `${droneIds.length} Active` : 'Waiting for telemetry...'}</span>
+          <span>Packets: {packetCount}</span>
         </div>
 
+        {/* Collision Penalty Indicator */}
+        <div
+          className={`flex items-center gap-2 border px-3 py-2 rounded text-xs transition-colors ${
+            activeCollisions > 0
+              ? 'bg-rose-950/80 border-rose-500 text-rose-300 animate-pulse'
+              : 'bg-slate-900/80 border-slate-700/60 text-slate-300'
+          }`}
+        >
+          <AlertTriangle className="w-4 h-4 text-rose-400" />
+          <span>Collisions: {totalCollisions} (-{totalCollisions * 100} pts)</span>
+        </div>
+
+        {/* Debug Wire Toggle */}
+        <button
+          onClick={toggleCollisionDebug}
+          className={`flex items-center gap-1.5 text-xs border px-3 py-2 rounded shadow transition-colors ${
+            showCollisionDebug
+              ? 'bg-rose-900/40 border-rose-600 text-rose-200'
+              : 'bg-slate-900/80 border-slate-700 text-slate-400'
+          }`}
+        >
+          <ShieldAlert className="w-4 h-4" />
+          Debug Wire: {showCollisionDebug ? 'ON' : 'OFF'}
+        </button>
+
+        {/* Camera Mode Toggle */}
         <button
           onClick={() => setCameraMode(cameraMode === 'orbit' ? 'follow' : 'orbit')}
           className="flex items-center gap-2 bg-slate-900/80 hover:bg-slate-800 text-xs text-slate-200 border border-slate-700 px-3 py-2 rounded shadow transition-colors"
@@ -95,7 +140,7 @@ export default function App() {
         </button>
       </div>
 
-      {/* Drone Focus Selector */}
+      {/* Focus Selector */}
       <div className="absolute bottom-4 left-4 z-10 flex items-center gap-2 bg-slate-900/90 backdrop-blur border border-slate-800 p-2 rounded-lg text-xs text-slate-300">
         <Crosshair className="w-4 h-4 text-sky-400" />
         <span>Focus Agent:</span>
