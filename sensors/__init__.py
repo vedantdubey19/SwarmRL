@@ -1,3 +1,13 @@
+from sensors.event_logger import TelemetryEventLogger
+from sensors.recorder import TelemetryRecorder
+from sensors.telemetry import TelemetryPublisher
+from sensors.audit import (
+    AuditReport,
+    build_audit_report,
+    compare_audit_reports,
+    export_audit_comparison,
+    export_audit_report,
+)
 from sensors.events import (
     EventConfig,
     build_event_flags,
@@ -7,10 +17,24 @@ from sensors.events import (
     detect_targets_found,
     distance_between,
 )
+from sensors.export import (
+    export_metrics_csv,
+    export_metrics_json,
+    export_summary_json,
+    metric_records,
+    metrics_from_records,
+)
 from sensors.exploration import (
     ExplorationConfig,
     ExplorationMap,
     ExplorationSummary,
+)
+from sensors.metrics import (
+    AgentMetrics,
+    MetricsTracker,
+    SwarmMetrics,
+    build_agent_metrics,
+    metrics_from_payload,
 )
 from sensors.observation import (
     SensorObservation,
@@ -39,25 +63,74 @@ from sensors.scenario import (
     scenario_preset,
 )
 from sensors.sensors import ConeSensor, SensorConfig
+from sensors.stream import (
+    StreamClosedError,
+    SwarmPayloadStream,
+)
+from sensors.consumer import (
+    TelemetryConsumer,
+    TelemetryMessageError,
+)
+from sensors.service import (
+    TelemetryService,
+    TelemetryServiceError,
+)
+from sensors.session_summary import (
+    TelemetrySessionSummary,
+    TelemetrySummaryError,
+    export_session_summary,
+    summarize_and_export_session,
+    summarize_telemetry_session,
+)
+from sensors.bridge import (
+    build_telemetry_drone_state,
+    build_telemetry_frame_from_env,
+    build_telemetry_target_state,
+    create_registration_message,
+    format_telemetry_json,
+    heading_to_rotation_quat,
+)
 
 __all__ = [
+    "AgentMetrics",
+    "AuditReport",
     "ConeSensor",
     "EventConfig",
     "ExplorationConfig",
     "ExplorationMap",
     "ExplorationSummary",
+    "MetricsTracker",
     "RewardBreakdown",
     "RewardConfig",
     "ScenarioConfig",
     "ScenarioLevel",
     "SensorConfig",
     "SensorObservation",
+    "StreamClosedError",
+    "SwarmMetrics",
+    "SwarmPayloadStream",
+    "TelemetryConsumer",
+    "TelemetryEventLogger",
+    "TelemetryMessageError",
+    "TelemetryPublisher",
+    "TelemetryRecorder",
+    "TelemetryService",
+    "TelemetryServiceError",
+    "TelemetrySessionSummary",
+    "TelemetrySummaryError",
+    "build_agent_metrics",
+    "build_audit_report",
     "build_event_flags",
     "build_sensor_payload",
     "build_sensor_observation",
     "build_swarm_payload",
+    "build_telemetry_drone_state",
+    "build_telemetry_frame_from_env",
+    "build_telemetry_target_state",
     "calculate_reward",
     "calculate_reward_breakdown",
+    "compare_audit_reports",
+    "create_registration_message",
     "curriculum_scenarios",
     "detect_boundary_violations",
     "detect_drone_collisions",
@@ -65,16 +138,23 @@ __all__ = [
     "detect_targets_found",
     "distance_between",
     "ensure_json_serializable",
+    "export_audit_comparison",
+    "export_audit_report",
     "export_metrics_csv",
     "export_metrics_json",
+    "export_session_summary",
     "export_summary_json",
+    "format_telemetry_json",
     "generate_agent_positions",
     "generate_obstacles",
     "generate_targets",
+    "heading_to_rotation_quat",
     "metric_records",
     "metrics_from_payload",
     "metrics_from_records",
     "scenario_layout",
     "scenario_preset",
+    "summarize_and_export_session",
+    "summarize_telemetry_session",
     "validate_event_flags",
 ]

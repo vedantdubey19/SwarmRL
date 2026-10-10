@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import * as THREE from 'three';
 
 export const useSwarmStore = create((set, get) => ({
   // Telemetry target buffer: { [id]: { id, x, y, z, yaw, collision, timestamp } }

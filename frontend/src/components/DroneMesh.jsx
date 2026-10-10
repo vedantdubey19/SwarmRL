@@ -11,11 +11,21 @@ export default function DroneMesh({
   isSelected = false,
   onSelect,
 }) {
+  const groupRef = useRef();
   const rotorsRef = useRef([]);
   const showCollisionDebug = useSwarmStore((state) => state.showCollisionDebug);
 
   // Spin rotor blades continuously
   useFrame((_, delta) => {
+    const entry = useSwarmStore.getState().getDroneTelemetry(id);
+    if (entry && groupRef.current) {
+      const alpha = Math.min(1.0, delta * 18);
+      entry.currentPos.lerp(entry.targetPos, alpha);
+      entry.currentRot.slerp(entry.targetRot, alpha);
+      groupRef.current.position.copy(entry.currentPos);
+      groupRef.current.quaternion.copy(entry.currentRot);
+    }
+
     rotorsRef.current.forEach((rotor) => {
       if (rotor) rotor.rotation.y += delta * 28;
     });
@@ -29,7 +39,7 @@ export default function DroneMesh({
       rotation={[0, yaw, 0]}
       onClick={(e) => {
         e.stopPropagation();
-        onSelect(id);
+        onSelect?.(id);
       }}
     >
       {/* Central Chassis */}

@@ -15,7 +15,6 @@ import CameraRig from './components/CameraRig';
 import Terrain from './components/Terrain';
 import SwarmPipeline from './components/SwarmPipeline';
 import { useSwarmStore } from './store/useSwarmStore';
-import { useSwarmWebSocket } from './hooks/useSwarmWebSocket';
 
 function SimulationCanvas() {
   return (
@@ -38,6 +37,27 @@ function SimulationCanvas() {
 
       <CameraRig />
     </>
+  );
+}
+
+// Subscribes to per-frame latency on its own so the rest of App doesn't re-render every frame.
+function StreamStatus() {
+  const isConnected = useSwarmStore((s) => s.isConnected);
+  const latencyMs = useSwarmStore((s) => s.lastLatencyMs);
+
+  return (
+    <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-700/60 px-3 py-2 rounded text-xs text-slate-300">
+      {isConnected ? (
+        <Wifi className="w-4 h-4 text-emerald-400" />
+      ) : (
+        <WifiOff className="w-4 h-4 text-rose-500 animate-bounce" />
+      )}
+      <span>
+        {isConnected
+          ? `STREAM ACTIVE${latencyMs !== null ? ` (${latencyMs}ms)` : ''}`
+          : 'DISCONNECTED'}
+      </span>
+    </div>
   );
 }
 
@@ -130,7 +150,7 @@ export default function App() {
           className="bg-slate-800 text-slate-100 border border-slate-700 rounded px-2 py-1 outline-none"
         >
           <option value="">None (Free Orbit)</option>
-          {Object.keys(drones).map((id) => (
+          {droneIds.map((id) => (
             <option key={id} value={id}>
               {id}
             </option>
