@@ -1,3 +1,4 @@
+﻿import csv
 import os
 from datetime import datetime
 
@@ -5,42 +6,135 @@ import ray
 
 from rllib_config import build_training_config
 
-NUM_ITERATIONS = 100
-CHECKPOINT_EVERY = 10
+
+def find_entropy_values(data):
+    values = []
+
+    if isinstance(data, dict):
+        for key, value in data.items():
+            if key in ("entropy", "policy_entropy"):
+                if isinstance(value, (int, float)):
+                    values.append(float(value))
+            else:
+                values.extend(find_entropy_values(value))
+
+    elif isinstance(data, list):
+        for item in data:
+            values.extend(find_entropy_values(item))
+
+    return values
 
 
 def main():
     ray.init()
 
-    # The centralized-critic model in rllib_config is a ModelV2 custom model, which
-    # RLlib's new API stack ignores, so the Dict obs mode can't build yet. Train on
-    # local 81-dim obs with the shared policy until that model is ported to an RLModule.
-    config = build_training_config(include_global_state=False)
-    algo = config.build_algo()
+    algo = None
 
-    run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-    checkpoint_dir = os.path.abspath(os.path.join("training", "checkpoints", run_id))
-    os.makedirs(checkpoint_dir, exist_ok=True)
-    print(f"Checkpoint directory: {checkpoint_dir}")
+    try:
+        config = build_training_config()
+        algo = config.build_algo()
 
-    for iteration in range(1, NUM_ITERATIONS + 1):
-        result = algo.train()
-        runners = result.get("env_runners", {})
+        run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-        print(
-            f"iter {iteration:3d} | "
-            f"return_mean={runners.get('episode_return_mean')} | "
-            f"len_mean={runners.get('episode_len_mean')} | "
-            f"episodes={runners.get('num_episodes')} | "
-            f"env_steps={runners.get('num_env_steps_sampled')}"
+        checkpoint_dir = os.path.abspath(
+            os.path.join("training", "checkpoints", run_id)
+        )
+        metrics_dir = os.path.abspath(
+            os.path.join("training", "metrics")
         )
 
-        if iteration % CHECKPOINT_EVERY == 0:
-            path = algo.save(checkpoint_dir)
-            print(f"Checkpoint saved: {path}")
+        os.makedirs(checkpoint_dir, exist_ok=True)
+        os.makedirs(metrics_dir, exist_ok=True)
 
-    algo.stop()
-    ray.shutdown()
+        metrics_file = os.path.join(
+            metrics_dir,
+            f"training_metrics_{run_id}.csv",
+        )
+
+        fieldnames = [
+            "iteration",
+            "episode_return_mean",
+            "episode_len_mean",
+            "num_episodes",
+            "num_env_steps_sampled",
+            "policy_entropy",
+            "collision_count",
+            "team_cells",
+            "team_target_found",
+        ]
+
+        print("PPO training run starting...")
+        print(f"Checkpoint directory: {checkpoint_dir}")
+        print(f"Metrics file: {metrics_file}")
+
+        with open(
+            metrics_file,
+            "w",
+            newline="",
+            encoding="utf-8",
+        ) as csv_file:
+            writer = csv.DictWriter(
+                csv_file,
+                fieldnames=fieldnames,
+            )
+            writer.writeheader()
+            csv_file.flush()
+
+            for iteration in range(1, 101):
+                result = algo.train()
+
+                env_metrics = result.get("env_runners", {})
+                entropy_values = find_entropy_values(result)
+
+                policy_entropy = (
+                    sum(entropy_values) / len(entropy_values)
+                    if entropy_values
+                    else None
+                )
+
+                metrics = {
+                    "iteration": iteration,
+                    "episode_return_mean": env_metrics.get(
+                        "episode_return_mean"
+                    ),
+                    "episode_len_mean": env_metrics.get(
+                        "episode_len_mean"
+                    ),
+                    "num_episodes": env_metrics.get(
+                        "num_episodes"
+                    ),
+                    "num_env_steps_sampled": env_metrics.get(
+                        "num_env_steps_sampled"
+                    ),
+                    "policy_entropy": policy_entropy,
+                    "collision_count": env_metrics.get(
+                        "collision_count"
+                    ),
+                    "team_cells": env_metrics.get("team_cells"),
+                    "team_target_found": env_metrics.get(
+                        "team_target_found"
+                    ),
+                }
+
+                writer.writerow(metrics)
+                csv_file.flush()
+
+                print(f"\nTRAINING ITERATION: {iteration}")
+                for name, value in metrics.items():
+                    print(f"{name}: {value}")
+
+                if iteration % 10 == 0:
+                    checkpoint_path = algo.save(checkpoint_dir)
+                    print(f"CHECKPOINT SAVED: {checkpoint_path}")
+
+        print("\nTraining completed.")
+        print(f"Training metrics saved to: {metrics_file}")
+
+    finally:
+        if algo is not None:
+            algo.stop()
+
+        ray.shutdown()
 
 
 if __name__ == "__main__":

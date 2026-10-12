@@ -10,8 +10,7 @@ __pycache__/
 .pytest_cache/
 *.py[cod]
 
-# ML Checkpoints
-checkpoints/
+# Training
 training/
 
 # OS
