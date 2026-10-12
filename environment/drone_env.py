@@ -146,7 +146,7 @@ class SwarmSearchRescueEnv(ParallelEnv):
                 reward += 1.0
 
             if agent in collision_agents:
-                reward -= 100.0
+                reward -= 10.0
 
             rewards[agent] = reward
 
