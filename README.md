@@ -14,16 +14,34 @@ The project is designed to be extended with:
 - experiment tracking and benchmarking
 - simulation and visualization tools
 
-## Project status
+## Multi-Agent Environment Architecture
 
-This repository currently provides the initial project scaffold and documentation. As the codebase grows, the sections below can be expanded to include the actual implementation details, algorithms, datasets, and experiment results.
+- **Agent Count:** 50 homogeneous drones (`drone_0` through `drone_49`) performing collaborative Search-and-Rescue (SAR).
+- **Environment Interface:** PettingZoo `ParallelEnv` (`SwarmRLParallelEnv` in `env.py`).
+- **RLlib / MAPPO Target:** Supports Centralized Training with Decentralized Execution (CTDE). Each agent receives an 81-dimensional local observation vector, while the centralized value network consumes a 471-dimensional global state vector (`Box(471,)`).
+- **Sensors & Rewards Integration:** `env.py` uses `sensors/rewards.py` (`calculate_reward`), `sensors/sensors.py` (`ConeSensor`) and `sensors/exploration.py` (`ExplorationMap`). It computes collision, boundary and target event flags inline in `step()`. It does **not** call `sensors/events.py`'s `build_event_flags`, which duplicates the same thresholds (2.0 / 1.0 / 3.0 m) but is unused by the env. Step rewards are unpacked as `(total_reward: float, details: dict)` and exposed under `infos[agent_id]["reward_breakdown"]`.
+- **WebSocket Relay Integration:** `server.js` relays 50-drone telemetry frames on port 8080 to the Three.js / React-Three-Fiber viewport, which interpolates with lerp/slerp. `sensors/bridge.py` provides the Python bridge (`build_telemetry_frame_from_env`) converting physical simulation steps into wire-compliant telemetry frames conforming to `schema.js` and `docs/websocket_streaming_protocol.md`.
 
 ## Repository structure
 
 ```text
 SwarmRL/
-├── README.md
-└── (project source files and experiments will be added here)
+├── env.py                       # 50-agent PettingZoo ParallelEnv
+├── rllib_config.py              # Ray RLlib MAPPO configuration
+├── train_audit_trial1.py        # MAPPO baseline training harness
+├── train.py                     # RLlib PPO training driver with checkpointing
+├── server.js                    # Node.js 50-drone WebSocket relay broker
+├── schema.js                    # Telemetry frame schema validation
+├── sensors/                     # Sensor simulation & reward engine
+│   ├── bridge.py                # Python-to-WebSocket telemetry frame bridge
+│   ├── sensors.py               # ConeSensor (90° FoV, 20m range)
+│   ├── rewards.py               # 7-component reward function
+│   ├── events.py                # Collision, boundary & target detection
+│   ├── exploration.py           # 2D occupancy & coverage grid
+│   └── telemetry.py             # Metrics & telemetry payload builder
+├── frontend/                    # Three.js / React-Three-Fiber 3D viewport
+├── tests/                       # Unit & integration test suites
+└── docs/                        # Architecture & interface specifications (env_spec.md is the env reference)
 ```
 
 ## Getting started
