@@ -1,7 +1,8 @@
 const WebSocket = require('ws');
 const { createAgentMessage } = require('./schema');
+const { getWsUrl } = require('./config');
 
-const ws = new WebSocket('ws://localhost:8080');
+const ws = new WebSocket(getWsUrl());
 
 const NUM_SAMPLES = 20;
 let sent = 0;

@@ -1,6 +1,7 @@
 const WebSocket = require('ws');
+const { getWsUrl } = require('./config');
 
-const ws = new WebSocket('ws://localhost:8080');
+const ws = new WebSocket(getWsUrl());
 
 const dummyPayloads = [
   { id: 'drone-1', x: 0, y: 0, z: 0, timestamp: Date.now() },
