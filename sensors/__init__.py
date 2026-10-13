@@ -1,3 +1,10 @@
+from sensors.difficulty import (
+    DifficultyLevel,
+    DifficultyScaleError,
+    ObstacleDifficultyProfile,
+    ObstacleDifficultyScaler,
+    resolve_obstacle_difficulty,
+)
 from sensors.archive import (
     TelemetryArchive,
     TelemetryArchiveError,
