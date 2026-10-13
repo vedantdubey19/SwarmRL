@@ -9,6 +9,9 @@ const {
 
 const PORT = process.env.PORT || 8080;
 
+// Message types the server relays to every other connected client.
+const RELAY_TYPES = new Set(['batch_update', 'grid_delta', 'env_event']);
+
 function createServer(port = PORT) {
   const wss = new WebSocket.Server({ port });
   const clients = new Set();
@@ -21,7 +24,6 @@ function createServer(port = PORT) {
     clients.add(socket);
     console.log(`Client connected: ${req.socket.remoteAddress} (total: ${clients.size})`);
 
-    // Heartbeat tracking to detect dead connections
     socket.isAlive = true;
     socket.on('pong', () => {
       socket.isAlive = true;
@@ -37,8 +39,16 @@ function createServer(port = PORT) {
         return;
       }
 
-      if (parsed.type === 'batch_update') {
-        console.log(`Received batch: step ${parsed.step}, ${parsed.agents.length} agents`);
+      if (RELAY_TYPES.has(parsed.type)) {
+        if (parsed.type === 'batch_update' && parsed.step % 50 === 0) {
+          console.log(`Relaying batch: step ${parsed.step}`);
+        }
+        const payload = JSON.stringify(parsed);
+        clients.forEach((client) => {
+          if (client !== socket && client.readyState === WebSocket.OPEN) {
+            client.send(payload);
+          }
+        });
         return;
       }
 
@@ -62,7 +72,6 @@ function createServer(port = PORT) {
     });
   });
 
-  // Ping clients every 30s to detect dead connections that didn't fire 'close'
   const heartbeatInterval = setInterval(() => {
     wss.clients.forEach((socket) => {
       if (socket.isAlive === false) {
