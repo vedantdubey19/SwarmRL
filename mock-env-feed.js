@@ -92,7 +92,7 @@ function send(msg) {
 }
 
 function connect() {
-  ws = new WebSocket('ws://localhost:8080');
+  ws = new WebSocket(getWsUrl());
 
   ws.on('open', () => {
     console.log('Mock env feed connected.');

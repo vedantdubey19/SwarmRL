@@ -137,6 +137,33 @@ def test_close_stops_subscribers():
 
         assert stream.is_closed is True
         assert stream.subscriber_count == 0
+        assert received == []
+
+    asyncio.run(scenario())
+
+
+def test_close_delivers_queued_payload_before_shutdown():
+    async def scenario():
+        stream = SwarmPayloadStream()
+        received = []
+
+        async def subscriber():
+            async for payload in stream.subscribe():
+                received.append(payload)
+
+        subscriber_task = asyncio.create_task(subscriber())
+
+        await asyncio.sleep(0)
+
+        payload = {"step": 1}
+
+        await stream.publish(payload)
+        await stream.close()
+        await subscriber_task
+
+        assert received == [payload]
+        assert stream.is_closed is True
+        assert stream.subscriber_count == 0
 
     asyncio.run(scenario())
 
@@ -152,14 +179,17 @@ def test_publishing_after_close_raises_error():
     asyncio.run(scenario())
 
 
-def test_subscribing_after_close_raises_error():
+def test_subscribing_after_close_ends_cleanly():
     async def scenario():
         stream = SwarmPayloadStream()
         await stream.close()
 
-        with pytest.raises(StreamClosedError):
-            async for _ in stream.subscribe():
-                pass
+        received = []
+
+        async for payload in stream.subscribe():
+            received.append(payload)
+
+        assert received == []
 
     asyncio.run(scenario())
 

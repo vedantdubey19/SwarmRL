@@ -1,8 +1,13 @@
 const WebSocket = require('ws');
 const { createServer } = require('../server');
 const { createTelemetryFrame, isValidTelemetryFrame } = require('../schema');
+const { getWsUrl } = require('../config');
 
-const PORT = 8099;
+const DEFAULT_LOAD_PORT = 8099;
+const HOST = process.env.WS_HOST || 'localhost';
+const PORT = parseInt(process.env.LOAD_TEST_PORT || process.env.WS_PORT || String(DEFAULT_LOAD_PORT), 10);
+const DEFAULT_URL = `ws://${HOST}:${PORT}`;
+const TARGET_URL = getWsUrl(DEFAULT_URL);
 const NUM_SUBSCRIBERS = 2;
 const NUM_DRONES = 50;
 const STREAM_HZ = 30;
@@ -68,10 +73,14 @@ function generate50DroneFrame(step) {
 }
 
 async function runLoadTest() {
-  console.log(`[Load Test] Starting WebSocket server on port ${PORT}...`);
-  const server = createServer(PORT);
-
-  await new Promise(resolve => server.on('listening', resolve));
+  let server = null;
+  if (TARGET_URL === DEFAULT_URL) {
+    console.log(`[Load Test] Starting WebSocket server on port ${PORT}...`);
+    server = createServer(PORT);
+    await new Promise(resolve => server.on('listening', resolve));
+  } else {
+    console.log(`[Load Test] Connecting to WebSocket endpoint: ${TARGET_URL}...`);
+  }
 
   const startMemory = process.memoryUsage();
   let stringifyTimes = [];
@@ -85,7 +94,7 @@ async function runLoadTest() {
 
   // Connect Subscribers
   for (let s = 0; s < NUM_SUBSCRIBERS; s++) {
-    const subWs = new WebSocket(`ws://localhost:${PORT}`);
+    const subWs = new WebSocket(TARGET_URL);
     await new Promise((resolve, reject) => {
       subWs.on('open', () => {
         subWs.send(JSON.stringify({ type: 'register', role: 'subscriber' }));
@@ -114,7 +123,7 @@ async function runLoadTest() {
   }
 
   // Connect Publisher
-  const pubWs = new WebSocket(`ws://localhost:${PORT}`);
+  const pubWs = new WebSocket(TARGET_URL);
   await new Promise((resolve, reject) => {
     pubWs.on('open', () => {
       pubWs.send(JSON.stringify({ type: 'register', role: 'publisher' }));
@@ -157,7 +166,7 @@ async function runLoadTest() {
   // Clean up
   pubWs.close();
   subscribers.forEach(s => s.close());
-  server.close();
+  if (server) server.close();
 
   // Statistics calculation
   const avgLatency = latencies.reduce((a, b) => a + b, 0) / (latencies.length || 1);

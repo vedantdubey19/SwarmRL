@@ -7,7 +7,7 @@ const {
   isValidAgentMessage,
 } = require('./schema');
 
-const PORT = process.env.PORT || 8080;
+const { WS_HOST, WS_PORT } = require('./config');
 
 // Message types the server relays to every other connected client.
 const RELAY_TYPES = new Set(['batch_update', 'grid_delta', 'env_event']);
@@ -106,8 +106,13 @@ if (require.main === module) {
     console.error('Uncaught exception:', err);
   });
 
-  process.on('unhandledRejection', (reason) => {
-    console.error('Unhandled promise rejection:', reason);
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`Port ${PORT} is already in use. Is another instance running?`);
+    } else {
+      console.error('Server error:', err.message);
+    }
+    process.exit(1);
   });
 }
 
