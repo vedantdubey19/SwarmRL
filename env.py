@@ -312,7 +312,8 @@ class SwarmRLParallelEnv(ParallelEnv):
             # Target checks
             for target in self.targets:
                 if not target.found:
-                    if float(np.linalg.norm(pos - target.position)) <= 3.0:
+                    horiz_dist = float(np.hypot(pos[0] - target.position[0], pos[2] - target.position[2]))
+                    if horiz_dist <= 3.0 and 0.0 <= pos[1] <= 20.0:
                         target.found = True
                         targets_found_by_agent.add(agent_id)
                         team_target_found_this_step = True
@@ -343,6 +344,10 @@ class SwarmRLParallelEnv(ParallelEnv):
                 team_target_found=team_target_found_this_step,
                 min_neighbor_dist=min_neighbor_dists.get(agent_id),
             )
+
+            details["team_cells"] = int(total_team_cells)
+            details["min_neighbor_dist"] = min_neighbor_dists.get(agent_id)
+            details["team_target_found_flag"] = bool(team_target_found_this_step)
 
             rewards[agent_id] = float(total_reward)
             infos[agent_id] = {"reward_breakdown": details}
