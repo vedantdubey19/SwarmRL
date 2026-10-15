@@ -9,7 +9,7 @@ import {
   AlertTriangle,
   ShieldAlert,
   Activity,
-  Layers,
+  Cpu,
 } from 'lucide-react';
 import CameraRig from './components/CameraRig';
 import Terrain from './components/Terrain';
@@ -28,13 +28,8 @@ function SimulationCanvas() {
         shadow-mapSize-height={2048}
       />
       <hemisphereLight skyColor="#38bdf8" groundColor="#080c14" intensity={0.4} />
-
-      {/* 3D Topographical Map */}
       <Terrain size={120} segments={64} />
-
-      {/* Refactored Real-Data Telemetry Pipeline */}
       <SwarmPipeline />
-
       <CameraRig />
     </>
   );
@@ -62,7 +57,7 @@ function StreamStatus() {
 }
 
 export default function App() {
-  const { isConnected, lastLatencyMs } = useSwarmWebSocket('ws://localhost:8765');
+  const { isConnected } = useSwarmWebSocket('ws://localhost:8765');
   const {
     cameraMode,
     setCameraMode,
@@ -73,6 +68,8 @@ export default function App() {
     showCollisionDebug,
     toggleCollisionDebug,
     packetCount,
+    avgLatencyMs,
+    networkJitterMs,
   } = useSwarmStore();
 
   const activeDroneCount = Object.keys(drones).length;
@@ -80,16 +77,16 @@ export default function App() {
 
   return (
     <div className="relative w-screen h-screen select-none bg-[#080c14]">
-      {/* Top Left HUD */}
+      {/* Header */}
       <header className="absolute top-4 left-4 z-10 flex items-center gap-3 bg-slate-900/90 backdrop-blur border border-slate-700/60 px-4 py-2.5 rounded-lg text-white shadow-xl">
         <Radio className="w-5 h-5 text-emerald-400 animate-pulse" />
         <div>
           <h1 className="text-sm font-semibold tracking-wide">SwarmRL Telemetry Viewport</h1>
-          <p className="text-xs text-slate-400">Day 10: Real-Data Pipeline Refactored (Milestone 2)</p>
+          <p className="text-xs text-slate-400">Day 11: Real-Data Telemetry Bridge & Ingestion Prep</p>
         </div>
       </header>
 
-      {/* Top Right HUD Metrics */}
+      {/* Real-Data Diagnostic HUD */}
       <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
         <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-700/60 px-3 py-2 rounded text-xs text-slate-300">
           {isConnected ? (
@@ -97,15 +94,19 @@ export default function App() {
           ) : (
             <WifiOff className="w-4 h-4 text-rose-500 animate-bounce" />
           )}
-          <span>{isConnected ? `STREAM (${lastLatencyMs}ms)` : 'DISCONNECTED'}</span>
+          <span>{isConnected ? `SYNC (${avgLatencyMs}ms / ±${networkJitterMs}ms)` : 'OFFLINE'}</span>
         </div>
 
         <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-700/60 px-3 py-2 rounded text-xs text-slate-300">
-          <Activity className="w-4 h-4 text-sky-400" />
-          <span>Packets: {packetCount}</span>
+          <Cpu className="w-4 h-4 text-sky-400" />
+          <span>Agents: {activeDroneCount}</span>
         </div>
 
-        {/* Collision Penalty Indicator */}
+        <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-700/60 px-3 py-2 rounded text-xs text-slate-300">
+          <Activity className="w-4 h-4 text-indigo-400" />
+          <span>Frames: {packetCount}</span>
+        </div>
+
         <div
           className={`flex items-center gap-2 border px-3 py-2 rounded text-xs transition-colors ${
             activeCollisions > 0
@@ -114,10 +115,9 @@ export default function App() {
           }`}
         >
           <AlertTriangle className="w-4 h-4 text-rose-400" />
-          <span>Collisions: {totalCollisions} (-{totalCollisions * 100} pts)</span>
+          <span>Collisions: {totalCollisions}</span>
         </div>
 
-        {/* Debug Wire Toggle */}
         <button
           onClick={toggleCollisionDebug}
           className={`flex items-center gap-1.5 text-xs border px-3 py-2 rounded shadow transition-colors ${
@@ -127,10 +127,9 @@ export default function App() {
           }`}
         >
           <ShieldAlert className="w-4 h-4" />
-          Debug Wire: {showCollisionDebug ? 'ON' : 'OFF'}
+          Debug: {showCollisionDebug ? 'ON' : 'OFF'}
         </button>
 
-        {/* Camera Mode Toggle */}
         <button
           onClick={() => setCameraMode(cameraMode === 'orbit' ? 'follow' : 'orbit')}
           className="flex items-center gap-2 bg-slate-900/80 hover:bg-slate-800 text-xs text-slate-200 border border-slate-700 px-3 py-2 rounded shadow transition-colors"
