@@ -1,3 +1,10 @@
+from sensors.reward_tuning import (
+    RewardFieldChange,
+    RewardTuningComparison,
+    RewardTuningError,
+    compare_reward_configs,
+    export_reward_tuning_comparison,
+)
 from sensors.difficulty import (
     DifficultyLevel,
     DifficultyScaleError,
