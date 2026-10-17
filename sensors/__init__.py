@@ -1,3 +1,9 @@
+from sensors.visuals_integration import (
+    VisualsIntegrationCheck,
+    VisualsIntegrationError,
+    export_visuals_integration_check,
+    validate_visuals_integration,
+)
 from sensors.reward_tuning import (
     RewardFieldChange,
     RewardTuningComparison,
