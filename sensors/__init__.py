@@ -1,3 +1,10 @@
+from sensors.visual_bug_triage import (
+    VisualBugTriage,
+    VisualBugTriageError,
+    export_visual_bug_triage,
+    triage_visual_bug,
+    update_visual_bug_status,
+)
 from sensors.visuals_integration import (
     VisualsIntegrationCheck,
     VisualsIntegrationError,
