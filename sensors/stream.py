@@ -35,11 +35,6 @@ class SwarmPayloadStream:
 
     async def subscribe(self) -> AsyncIterator[dict[str, Any]]:
         """Yield published payloads until unsubscribed or closed."""
-        if self._closed:
-            raise StreamClosedError(
-                "Cannot subscribe to a closed stream."
-            )
-
         queue: asyncio.Queue[dict[str, Any] | None] = (
             asyncio.Queue(
                 maxsize=self.max_queue_size
@@ -48,9 +43,7 @@ class SwarmPayloadStream:
 
         async with self._lock:
             if self._closed:
-                raise StreamClosedError(
-                    "Cannot subscribe to a closed stream."
-                )
+                return
 
             self._subscribers.add(queue)
 
@@ -100,7 +93,7 @@ class SwarmPayloadStream:
         return delivered
 
     async def close(self) -> None:
-        """Close the stream and stop all subscribers."""
+        """Close the stream after queued payloads are delivered."""
         if self._closed:
             return
 
@@ -111,16 +104,7 @@ class SwarmPayloadStream:
             self._subscribers.clear()
 
         for queue in subscribers:
-            while not queue.empty():
-                try:
-                    queue.get_nowait()
-                except asyncio.QueueEmpty:
-                    break
-
-            try:
-                queue.put_nowait(None)
-            except asyncio.QueueFull:
-                pass
+            await queue.put(None)
 
     async def __aenter__(self):
         if self._closed:

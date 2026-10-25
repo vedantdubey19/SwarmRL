@@ -7,7 +7,10 @@ import { useSwarmStore } from '../store/useSwarmStore';
 export default function CameraRig() {
   const controlsRef = useRef();
   const { camera } = useThree();
-  const { selectedDroneId, drones, cameraMode } = useSwarmStore();
+  const selectedDroneId = useSwarmStore((s) => s.selectedDroneId);
+  const cameraMode = useSwarmStore((s) => s.cameraMode);
+  const followOffset = useRef(new THREE.Vector3(0, 5, 10));
+  const followPos = useRef(new THREE.Vector3());
 
   useEffect(() => {
     // Standard tactical isometric view
@@ -16,13 +19,14 @@ export default function CameraRig() {
   }, [camera]);
 
   useFrame(() => {
-    if (cameraMode === 'follow' && selectedDroneId && drones[selectedDroneId]) {
-      const target = drones[selectedDroneId];
-      const targetPos = new THREE.Vector3(target.x, target.y + 5, target.z + 10);
-      camera.position.lerp(targetPos, 0.05);
-      if (controlsRef.current) {
-        controlsRef.current.target.lerp(new THREE.Vector3(target.x, target.y, target.z), 0.05);
-      }
+    if (cameraMode !== 'follow' || !selectedDroneId) return;
+    const entry = useSwarmStore.getState().getDroneTelemetry(selectedDroneId);
+    if (!entry) return;
+
+    followPos.current.copy(entry.currentPos).add(followOffset.current);
+    camera.position.lerp(followPos.current, 0.05);
+    if (controlsRef.current) {
+      controlsRef.current.target.lerp(entry.currentPos, 0.05);
     }
   });
 

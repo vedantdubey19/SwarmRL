@@ -1,6 +1,7 @@
 const WebSocket = require('ws');
+const { getWsUrl } = require('./config');
 
-const URL = 'ws://localhost:8080';
+const URL = getWsUrl();
 const RUN_MS = 20000;
 const EXPECTED_AGENTS = 50;
 
