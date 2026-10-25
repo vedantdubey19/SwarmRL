@@ -9,12 +9,13 @@ import {
   AlertTriangle,
   ShieldAlert,
   Activity,
-  Cpu,
+  Maximize2,
 } from 'lucide-react';
 import CameraRig from './components/CameraRig';
 import Terrain from './components/Terrain';
 import SwarmPipeline from './components/SwarmPipeline';
 import { useSwarmStore } from './store/useSwarmStore';
+import { useSwarmWebSocket } from './hooks/useSwarmWebSocket';
 
 function SimulationCanvas() {
   return (
@@ -28,36 +29,23 @@ function SimulationCanvas() {
         shadow-mapSize-height={2048}
       />
       <hemisphereLight skyColor="#38bdf8" groundColor="#080c14" intensity={0.4} />
+
+      {/* 3D Topographical Map Elevation Mesh */}
       <Terrain size={120} segments={64} />
+
+      {/* Synchronized 50-Agent MARL Telemetry Pipeline */}
       <SwarmPipeline />
+
+      {/* Orbit & Follow Dynamic Camera Rig */}
       <CameraRig />
     </>
   );
 }
 
-// Subscribes to per-frame latency on its own so the rest of App doesn't re-render every frame.
-function StreamStatus() {
-  const isConnected = useSwarmStore((s) => s.isConnected);
-  const latencyMs = useSwarmStore((s) => s.lastLatencyMs);
-
-  return (
-    <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-700/60 px-3 py-2 rounded text-xs text-slate-300">
-      {isConnected ? (
-        <Wifi className="w-4 h-4 text-emerald-400" />
-      ) : (
-        <WifiOff className="w-4 h-4 text-rose-500 animate-bounce" />
-      )}
-      <span>
-        {isConnected
-          ? `STREAM ACTIVE${latencyMs !== null ? ` (${latencyMs}ms)` : ''}`
-          : 'DISCONNECTED'}
-      </span>
-    </div>
-  );
-}
-
 export default function App() {
+  // Bind live non-mock WebSocket stream (Arya's broadcast server)
   const { isConnected } = useSwarmWebSocket('ws://localhost:8765');
+
   const {
     cameraMode,
     setCameraMode,
@@ -70,43 +58,52 @@ export default function App() {
     packetCount,
     avgLatencyMs,
     networkJitterMs,
+    swarmDispersionRadius,
   } = useSwarmStore();
 
   const activeDroneCount = Object.keys(drones).length;
   const activeCollisions = Object.values(drones).filter((d) => d.collision).length;
 
   return (
-    <div className="relative w-screen h-screen select-none bg-[#080c14]">
-      {/* Header */}
+    <div className="relative w-screen h-screen select-none bg-[#080c14] overflow-hidden">
+      {/* Top-Left Telemetry Header HUD */}
       <header className="absolute top-4 left-4 z-10 flex items-center gap-3 bg-slate-900/90 backdrop-blur border border-slate-700/60 px-4 py-2.5 rounded-lg text-white shadow-xl">
         <Radio className="w-5 h-5 text-emerald-400 animate-pulse" />
         <div>
           <h1 className="text-sm font-semibold tracking-wide">SwarmRL Telemetry Viewport</h1>
-          <p className="text-xs text-slate-400">Day 11: Real-Data Telemetry Bridge & Ingestion Prep</p>
+          <p className="text-xs text-slate-400">Day 13: Live (Non-Mock) WebSocket Ingestion</p>
         </div>
       </header>
 
-      {/* Real-Data Diagnostic HUD */}
+      {/* Top-Right Metrics & Diagnostic Controls HUD */}
       <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+        {/* Stream Status & Latency/Jitter */}
         <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-700/60 px-3 py-2 rounded text-xs text-slate-300">
           {isConnected ? (
             <Wifi className="w-4 h-4 text-emerald-400" />
           ) : (
             <WifiOff className="w-4 h-4 text-rose-500 animate-bounce" />
           )}
-          <span>{isConnected ? `SYNC (${avgLatencyMs}ms / ±${networkJitterMs}ms)` : 'OFFLINE'}</span>
+          <span>
+            {isConnected
+              ? `LIVE (${avgLatencyMs}ms / ±${networkJitterMs}ms)`
+              : 'OFFLINE'}
+          </span>
         </div>
 
+        {/* Swarm Dispersion Metric (Humera & Venkatesh Audit Sync) */}
         <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-700/60 px-3 py-2 rounded text-xs text-slate-300">
-          <Cpu className="w-4 h-4 text-sky-400" />
-          <span>Agents: {activeDroneCount}</span>
+          <Maximize2 className="w-4 h-4 text-sky-400" />
+          <span>Dispersion: {swarmDispersionRadius}m</span>
         </div>
 
+        {/* Ingested Frames */}
         <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-700/60 px-3 py-2 rounded text-xs text-slate-300">
           <Activity className="w-4 h-4 text-indigo-400" />
           <span>Frames: {packetCount}</span>
         </div>
 
+        {/* Collision Penalty HUD Indicator (-100 pts per collision event) */}
         <div
           className={`flex items-center gap-2 border px-3 py-2 rounded text-xs transition-colors ${
             activeCollisions > 0
@@ -115,9 +112,12 @@ export default function App() {
           }`}
         >
           <AlertTriangle className="w-4 h-4 text-rose-400" />
-          <span>Collisions: {totalCollisions}</span>
+          <span>
+            Collisions: {totalCollisions} (-{totalCollisions * 100} pts)
+          </span>
         </div>
 
+        {/* Debug Wire Toggle */}
         <button
           onClick={toggleCollisionDebug}
           className={`flex items-center gap-1.5 text-xs border px-3 py-2 rounded shadow transition-colors ${
@@ -130,6 +130,7 @@ export default function App() {
           Debug: {showCollisionDebug ? 'ON' : 'OFF'}
         </button>
 
+        {/* Camera Perspective Mode Toggle */}
         <button
           onClick={() => setCameraMode(cameraMode === 'orbit' ? 'follow' : 'orbit')}
           className="flex items-center gap-2 bg-slate-900/80 hover:bg-slate-800 text-xs text-slate-200 border border-slate-700 px-3 py-2 rounded shadow transition-colors"
@@ -140,7 +141,7 @@ export default function App() {
       </div>
 
       {/* Focus Selector */}
-      <div className="absolute bottom-4 left-4 z-10 flex items-center gap-2 bg-slate-900/90 backdrop-blur border border-slate-800 p-2 rounded-lg text-xs text-slate-300">
+      <div className="absolute bottom-4 left-4 z-10 flex items-center gap-2 bg-slate-900/90 backdrop-blur border border-slate-800 p-2 rounded-lg text-xs text-slate-300 shadow-xl">
         <Crosshair className="w-4 h-4 text-sky-400" />
         <span>Focus Agent:</span>
         <select
@@ -149,7 +150,7 @@ export default function App() {
           className="bg-slate-800 text-slate-100 border border-slate-700 rounded px-2 py-1 outline-none"
         >
           <option value="">None (Free Orbit)</option>
-          {droneIds.map((id) => (
+          {Object.keys(drones).map((id) => (
             <option key={id} value={id}>
               {id}
             </option>

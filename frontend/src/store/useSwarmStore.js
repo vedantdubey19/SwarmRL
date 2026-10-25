@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import * as THREE from 'three';
 import { globalTelemetryBridge } from '../utils/telemetryBridge';
+import { globalSyncBuffer } from '../utils/syncBuffer';
 
 export const useSwarmStore = create((set) => ({
   drones: {},
@@ -11,25 +11,46 @@ export const useSwarmStore = create((set) => ({
   packetCount: 0,
   avgLatencyMs: 0,
   networkJitterMs: 0,
+  swarmDispersionRadius: 0, // Day 13: Spread-out dispersion radius
 
-  // Day 11 Real-Data Ingestion Pipeline Hook
   ingestRawBatch: (rawBatch) =>
     set((state) => {
       const { validNodes, avgJitter } = globalTelemetryBridge.processBatch(rawBatch);
       if (validNodes.length === 0) return {};
 
+      // Push coordinates to the spatial interpolation buffer
+      globalSyncBuffer.pushBatch(validNodes);
+
       const updated = { ...state.drones };
       let stepCollisions = 0;
       let latencySum = 0;
+      let sumX = 0;
+      let sumZ = 0;
       const now = Date.now();
 
       validNodes.forEach((agent) => {
         updated[agent.id] = agent;
         if (agent.collision) stepCollisions++;
         if (agent.timestamp) latencySum += Math.max(0, now - agent.timestamp);
+        sumX += agent.x;
+        sumZ += agent.z;
       });
 
-      const avgLat = Math.round(latencySum / validNodes.length);
+      // Calculate swarm centroid and dispersion radius
+      const count = validNodes.length;
+      const centroidX = sumX / count;
+      const centroidZ = sumZ / count;
+
+      let maxDistSq = 0;
+      validNodes.forEach((agent) => {
+        const dx = agent.x - centroidX;
+        const dz = agent.z - centroidZ;
+        const distSq = dx * dx + dz * dz;
+        if (distSq > maxDistSq) maxDistSq = distSq;
+      });
+
+      const dispersionRadius = Math.round(Math.sqrt(maxDistSq));
+      const avgLat = Math.round(latencySum / count);
 
       return {
         drones: updated,
@@ -37,6 +58,7 @@ export const useSwarmStore = create((set) => ({
         packetCount: state.packetCount + 1,
         avgLatencyMs: avgLat,
         networkJitterMs: avgJitter,
+        swarmDispersionRadius: dispersionRadius,
       };
     }),
 
