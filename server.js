@@ -10,7 +10,7 @@ const {
 const PORT = process.env.PORT || 8080;
 
 // Message types the server relays to every other connected client.
-const RELAY_TYPES = new Set(['batch_update', 'grid_delta', 'env_event']);
+const RELAY_TYPES = new Set(['batch_update', 'grid_delta', 'grid_snapshot', 'env_event']);
 
 function createServer(port = PORT) {
   const wss = new WebSocket.Server({ port });
@@ -36,6 +36,11 @@ function createServer(port = PORT) {
       } catch (err) {
         console.error('Invalid JSON received:', err.message);
         socket.send(JSON.stringify({ type: 'error', message: 'Invalid JSON payload' }));
+        return;
+      }
+
+      if (typeof parsed !== 'object' || parsed === null) {
+        socket.send(JSON.stringify({ type: 'error', message: 'Message payload must be an object' }));
         return;
       }
 

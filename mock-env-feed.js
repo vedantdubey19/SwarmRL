@@ -88,7 +88,9 @@ function computeObservationFeatures(list) {
 }
 
 function send(msg) {
-  ws.send(JSON.stringify(msg));
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(msg));
+  }
 }
 
 function connect() {
@@ -133,6 +135,14 @@ function connect() {
           level: currentLevel.level,
           wind: currentLevel.wind,
           obstacles,
+        });
+        send({
+          type: 'grid_snapshot',
+          step: stepCount,
+          timestamp: now,
+          gridSize: grid.cells,
+          cells: grid.snapshot(),
+          percentExplored: grid.percentExplored,
         });
       }
 
