@@ -67,11 +67,12 @@ export default function App() {
   return (
     <div className="relative w-screen h-screen select-none bg-[#080c14] overflow-hidden">
       {/* Top-Left Telemetry Header HUD */}
+      {/* Header */}
       <header className="absolute top-4 left-4 z-10 flex items-center gap-3 bg-slate-900/90 backdrop-blur border border-slate-700/60 px-4 py-2.5 rounded-lg text-white shadow-xl">
         <Radio className="w-5 h-5 text-emerald-400 animate-pulse" />
         <div>
           <h1 className="text-sm font-semibold tracking-wide">SwarmRL Telemetry Viewport</h1>
-          <p className="text-xs text-slate-400">Day 13: Live (Non-Mock) WebSocket Ingestion</p>
+          <p className="text-xs text-slate-400">Day 14: Shortest-Arc Yaw Damping & Interpolation Stabilized</p>
         </div>
       </header>
 

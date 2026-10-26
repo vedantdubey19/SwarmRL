@@ -11,18 +11,39 @@ function SynchronizedAgentNode({ id, isSelected, showCollisionDebug, onSelect })
   useFrame((_, delta) => {
     if (!groupRef.current) return;
 
-    // 1. Fetch smoothed interpolated coordinates from the sync buffer
+    // 1. Fetch smoothed shortest-arc interpolated state from syncBuffer
     const syncedState = globalSyncBuffer.getInterpolatedState(id);
     if (syncedState) {
-      groupRef.current.position.x = syncedState.x;
-      groupRef.current.position.y = syncedState.y;
-      groupRef.current.position.z = syncedState.z;
-      groupRef.current.rotation.y = syncedState.yaw;
+      // Frame-rate independent exponential smoothing damping
+      const dampingFactor = 1.0 - Math.exp(-25 * delta);
+
+      groupRef.current.position.x = THREE.MathUtils.lerp(
+        groupRef.current.position.x,
+        syncedState.x,
+        dampingFactor
+      );
+      groupRef.current.position.y = THREE.MathUtils.lerp(
+        groupRef.current.position.y,
+        syncedState.y,
+        dampingFactor
+      );
+      groupRef.current.position.z = THREE.MathUtils.lerp(
+        groupRef.current.position.z,
+        syncedState.z,
+        dampingFactor
+      );
+
+      // Shortest-arc angle damping for heading orientation
+      groupRef.current.rotation.y = THREE.MathUtils.lerpAngle(
+        groupRef.current.rotation.y,
+        syncedState.yaw,
+        dampingFactor
+      );
     }
 
-    // 2. Spin rotors continuously
+    // 2. High-speed propeller rotation
     rotorsRef.current.forEach((rotor) => {
-      if (rotor) rotor.rotation.y += delta * 30;
+      if (rotor) rotor.rotation.y += delta * 32;
     });
   });
 
@@ -39,7 +60,7 @@ function SynchronizedAgentNode({ id, isSelected, showCollisionDebug, onSelect })
         onSelect(id);
       }}
     >
-      {/* Airframe Fuselage */}
+      {/* Airframe Chassis */}
       <mesh castShadow receiveShadow>
         <boxGeometry args={[1.2, 0.25, 1.2]} />
         <meshStandardMaterial
@@ -49,7 +70,7 @@ function SynchronizedAgentNode({ id, isSelected, showCollisionDebug, onSelect })
         />
       </mesh>
 
-      {/* Telemetry Status Indicator */}
+      {/* Telemetry Status Beacon */}
       <mesh position={[0, 0.16, 0]}>
         <sphereGeometry args={[0.18, 16, 16]} />
         <meshStandardMaterial
@@ -93,7 +114,7 @@ function SynchronizedAgentNode({ id, isSelected, showCollisionDebug, onSelect })
         </group>
       ))}
 
-      {/* Collision Volume */}
+      {/* Collision Penalty Danger Sphere */}
       {isCollision && showCollisionDebug && (
         <mesh>
           <sphereGeometry args={[2.0, 16, 16]} />
@@ -101,7 +122,7 @@ function SynchronizedAgentNode({ id, isSelected, showCollisionDebug, onSelect })
         </mesh>
       )}
 
-      {/* Selection Target Ring */}
+      {/* Focus Selection Ring */}
       {isSelected && (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.2, 0]}>
           <ringGeometry args={[1.5, 1.65, 32]} />
