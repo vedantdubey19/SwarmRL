@@ -2,44 +2,65 @@ import React, { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useSwarmStore } from '../store/useSwarmStore';
+import { globalSyncBuffer } from '../utils/syncBuffer';
 
-function SwarmAgentNode({ id, telemetry, isSelected, showCollisionDebug, onSelect }) {
+function SynchronizedAgentNode({ id, isSelected, showCollisionDebug, onSelect }) {
   const groupRef = useRef();
   const rotorsRef = useRef([]);
 
-  // Per-frame spatial interpolation (Lerping) for smooth 60 FPS motion
   useFrame((_, delta) => {
-    if (!groupRef.current || !telemetry) return;
+    if (!groupRef.current) return;
 
-    // Linear interpolation toward latest target coordinates
-    const [tx, ty, tz] = telemetry.targetPos || [telemetry.x, telemetry.y, telemetry.z];
-    groupRef.current.position.x = THREE.MathUtils.lerp(groupRef.current.position.x, tx, 0.25);
-    groupRef.current.position.y = THREE.MathUtils.lerp(groupRef.current.position.y, ty, 0.25);
-    groupRef.current.position.z = THREE.MathUtils.lerp(groupRef.current.position.z, tz, 0.25);
+    // 1. Fetch smoothed shortest-arc interpolated state from syncBuffer
+    const syncedState = globalSyncBuffer.getInterpolatedState(id);
+    if (syncedState) {
+      // Frame-rate independent exponential smoothing damping
+      const dampingFactor = 1.0 - Math.exp(-25 * delta);
 
-    // Smooth yaw rotation
-    const currentRot = groupRef.current.rotation.y;
-    groupRef.current.rotation.y = THREE.MathUtils.lerp(currentRot, telemetry.targetYaw || 0, 0.2);
+      groupRef.current.position.x = THREE.MathUtils.lerp(
+        groupRef.current.position.x,
+        syncedState.x,
+        dampingFactor
+      );
+      groupRef.current.position.y = THREE.MathUtils.lerp(
+        groupRef.current.position.y,
+        syncedState.y,
+        dampingFactor
+      );
+      groupRef.current.position.z = THREE.MathUtils.lerp(
+        groupRef.current.position.z,
+        syncedState.z,
+        dampingFactor
+      );
 
-    // Rotor spin animation
+      // Shortest-arc angle damping for heading orientation
+      groupRef.current.rotation.y = THREE.MathUtils.lerpAngle(
+        groupRef.current.rotation.y,
+        syncedState.yaw,
+        dampingFactor
+      );
+    }
+
+    // 2. High-speed propeller rotation
     rotorsRef.current.forEach((rotor) => {
-      if (rotor) rotor.rotation.y += delta * 30;
+      if (rotor) rotor.rotation.y += delta * 32;
     });
   });
 
-  const isCollision = telemetry?.collision || false;
+  const droneData = useSwarmStore((state) => state.drones[id]);
+  const isCollision = droneData?.collision || false;
   const statusColor = isCollision ? '#ef4444' : isSelected ? '#00f0ff' : '#10b981';
 
   return (
     <group
       ref={groupRef}
-      position={[telemetry.x, telemetry.y, telemetry.z]}
+      position={[droneData?.x || 0, droneData?.y || 0, droneData?.z || 0]}
       onClick={(e) => {
         e.stopPropagation();
         onSelect(id);
       }}
     >
-      {/* Airframe Fuselage */}
+      {/* Airframe Chassis */}
       <mesh castShadow receiveShadow>
         <boxGeometry args={[1.2, 0.25, 1.2]} />
         <meshStandardMaterial
@@ -49,7 +70,7 @@ function SwarmAgentNode({ id, telemetry, isSelected, showCollisionDebug, onSelec
         />
       </mesh>
 
-      {/* Telemetry Indicator Beacon */}
+      {/* Telemetry Status Beacon */}
       <mesh position={[0, 0.16, 0]}>
         <sphereGeometry args={[0.18, 16, 16]} />
         <meshStandardMaterial
@@ -93,7 +114,7 @@ function SwarmAgentNode({ id, telemetry, isSelected, showCollisionDebug, onSelec
         </group>
       ))}
 
-      {/* Collision Penalty Danger Volume */}
+      {/* Collision Penalty Danger Sphere */}
       {isCollision && showCollisionDebug && (
         <mesh>
           <sphereGeometry args={[2.0, 16, 16]} />
@@ -101,7 +122,7 @@ function SwarmAgentNode({ id, telemetry, isSelected, showCollisionDebug, onSelec
         </mesh>
       )}
 
-      {/* Selection Halo */}
+      {/* Focus Selection Ring */}
       {isSelected && (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.2, 0]}>
           <ringGeometry args={[1.5, 1.65, 32]} />
@@ -118,15 +139,14 @@ export default function SwarmPipeline() {
   const showCollisionDebug = useSwarmStore((state) => state.showCollisionDebug);
   const setSelectedDroneId = useSwarmStore((state) => state.setSelectedDroneId);
 
-  const droneEntries = Object.entries(drones);
+  const droneKeys = Object.keys(drones);
 
   return (
     <group>
-      {droneEntries.map(([id, telemetry]) => (
-        <SwarmAgentNode
+      {droneKeys.map((id) => (
+        <SynchronizedAgentNode
           key={id}
           id={id}
-          telemetry={telemetry}
           isSelected={selectedDroneId === id}
           showCollisionDebug={showCollisionDebug}
           onSelect={setSelectedDroneId}
