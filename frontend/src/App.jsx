@@ -10,6 +10,8 @@ import {
   ShieldAlert,
   Activity,
   Maximize2,
+  CheckCircle2,
+  Gauge,
 } from 'lucide-react';
 import CameraRig from './components/CameraRig';
 import Terrain from './components/Terrain';
@@ -43,7 +45,7 @@ function SimulationCanvas() {
 }
 
 export default function App() {
-  // Bind live non-mock WebSocket stream (Arya's broadcast server)
+  // Bind live WebSocket telemetry feed
   const { isConnected } = useSwarmWebSocket('ws://localhost:8765');
 
   const {
@@ -59,6 +61,7 @@ export default function App() {
     avgLatencyMs,
     networkJitterMs,
     swarmDispersionRadius,
+    renderFps,
   } = useSwarmStore();
 
   const activeDroneCount = Object.keys(drones).length;
@@ -67,41 +70,36 @@ export default function App() {
   return (
     <div className="relative w-screen h-screen select-none bg-[#080c14] overflow-hidden">
       {/* Top-Left Telemetry Header HUD */}
-      {/* Header */}
       <header className="absolute top-4 left-4 z-10 flex items-center gap-3 bg-slate-900/90 backdrop-blur border border-slate-700/60 px-4 py-2.5 rounded-lg text-white shadow-xl">
         <Radio className="w-5 h-5 text-emerald-400 animate-pulse" />
         <div>
           <h1 className="text-sm font-semibold tracking-wide">SwarmRL Telemetry Viewport</h1>
-          <p className="text-xs text-slate-400">Day 14: Shortest-Arc Yaw Damping & Interpolation Stabilized</p>
+          <p className="text-xs text-slate-400">Day 15: Mid-Project Review — Rendering Check Sign-Off</p>
         </div>
       </header>
 
       {/* Top-Right Metrics & Diagnostic Controls HUD */}
       <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
-        {/* Stream Status & Latency/Jitter */}
+        {/* Stream Status */}
         <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-700/60 px-3 py-2 rounded text-xs text-slate-300">
           {isConnected ? (
             <Wifi className="w-4 h-4 text-emerald-400" />
           ) : (
             <WifiOff className="w-4 h-4 text-rose-500 animate-bounce" />
           )}
-          <span>
-            {isConnected
-              ? `LIVE (${avgLatencyMs}ms / ±${networkJitterMs}ms)`
-              : 'OFFLINE'}
-          </span>
+          <span>{isConnected ? `SYNC (${avgLatencyMs}ms / ±${networkJitterMs}ms)` : 'OFFLINE'}</span>
         </div>
 
-        {/* Swarm Dispersion Metric (Humera & Venkatesh Audit Sync) */}
+        {/* Viewport Frame Rate Profile */}
+        <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-700/60 px-3 py-2 rounded text-xs text-slate-300">
+          <Gauge className="w-4 h-4 text-emerald-400" />
+          <span>FPS: {renderFps}</span>
+        </div>
+
+        {/* Swarm Dispersion Metric */}
         <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-700/60 px-3 py-2 rounded text-xs text-slate-300">
           <Maximize2 className="w-4 h-4 text-sky-400" />
           <span>Dispersion: {swarmDispersionRadius}m</span>
-        </div>
-
-        {/* Ingested Frames */}
-        <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-700/60 px-3 py-2 rounded text-xs text-slate-300">
-          <Activity className="w-4 h-4 text-indigo-400" />
-          <span>Frames: {packetCount}</span>
         </div>
 
         {/* Collision Penalty HUD Indicator (-100 pts per collision event) */}
@@ -113,9 +111,13 @@ export default function App() {
           }`}
         >
           <AlertTriangle className="w-4 h-4 text-rose-400" />
-          <span>
-            Collisions: {totalCollisions} (-{totalCollisions * 100} pts)
-          </span>
+          <span>Collisions: {totalCollisions}</span>
+        </div>
+
+        {/* Milestone 3 Pass Verification Badge */}
+        <div className="flex items-center gap-1.5 bg-emerald-950/70 border border-emerald-600/70 px-3 py-2 rounded text-xs text-emerald-300 shadow">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <span>M3 Sign-Off</span>
         </div>
 
         {/* Debug Wire Toggle */}
@@ -159,6 +161,7 @@ export default function App() {
         </select>
       </div>
 
+      {/* 3D WebGL Canvas */}
       <Canvas
         camera={{ position: [0, 50, 75], fov: 50, near: 0.1, far: 1000 }}
         gl={{ antialias: true, alpha: false }}

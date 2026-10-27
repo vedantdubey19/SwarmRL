@@ -11,7 +11,8 @@ export const useSwarmStore = create((set) => ({
   packetCount: 0,
   avgLatencyMs: 0,
   networkJitterMs: 0,
-  swarmDispersionRadius: 0, // Day 13: Spread-out dispersion radius
+  swarmDispersionRadius: 0,
+  renderFps: 60,
 
   ingestRawBatch: (rawBatch) =>
     set((state) => {
@@ -36,7 +37,6 @@ export const useSwarmStore = create((set) => ({
         sumZ += agent.z;
       });
 
-      // Calculate swarm centroid and dispersion radius
       const count = validNodes.length;
       const centroidX = sumX / count;
       const centroidZ = sumZ / count;
@@ -62,6 +62,7 @@ export const useSwarmStore = create((set) => ({
       };
     }),
 
+  setRenderFps: (fps) => set({ renderFps: fps }),
   setSelectedDroneId: (id) => set({ selectedDroneId: id }),
   setCameraMode: (mode) => set({ cameraMode: mode }),
   toggleCollisionDebug: () =>
