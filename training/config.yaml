@@ -1,0 +1,23 @@
+# SwarmRL MAPPO Training Configuration
+lr: 0.0003
+gamma: 0.99
+lambda: 0.95
+clip_param: 0.2
+entropy_coeff: 0.01
+train_batch_size: 4000
+minibatch_size: 256
+num_epochs: 10
+num_env_runners: 2
+num_envs_per_env_runner: 1
+num_agents: 50
+initial_log_std: -0.5
+normalize_advantages: true
+checkpoint_dir: "./checkpoints"
+log_dir: "./runs"
+max_steps: 500
+dt: 0.1
+include_global_state: true
+curriculum:
+  k_consecutive_iterations: 3
+  reward_threshold: 50.0
+  max_difficulty: 4
