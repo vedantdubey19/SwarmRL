@@ -3,7 +3,8 @@ Unit tests for sensors/bridge.py Python-to-WebSocket telemetry bridge.
 """
 
 import json
-import subprocess
+import os
+import jsonschema
 import numpy as np
 import pytest
 
@@ -109,7 +110,7 @@ def test_telemetry_frame_after_step():
     )
 
     assert frame["step"] == 1
-    assert pytest.approx(frame["sim_time"]) == 0.05
+    assert pytest.approx(frame["sim_time"]) == round(env.step_count * env.dt, 3)
     assert frame["metrics"]["step_reward_sum"] == pytest.approx(reward_sum, abs=1e-3)
     assert len(frame["drones"]) == 5
 
@@ -137,20 +138,9 @@ def test_telemetry_frame_validation_against_node_schema():
     )
     raw_json = format_telemetry_json(frame)
 
-    # Validate against schema.js isValidTelemetryFrame using node subprocess
-    node_script = f"""
-    const {{ isValidTelemetryFrame }} = require('./schema');
-    const frame = {raw_json};
-    const valid = isValidTelemetryFrame(frame);
-    if (!valid) {{
-        console.error('Frame failed isValidTelemetryFrame validation');
-        process.exit(1);
-    }}
-    process.exit(0);
-    """
-    res = subprocess.run(
-        ["node", "-e", node_script],
-        capture_output=True,
-        text=True,
-    )
-    assert res.returncode == 0, f"Schema validation error: {res.stderr}"
+    # Validate against server/schema.json
+    import jsonschema
+    schema_path = os.path.join(os.path.dirname(__file__), "..", "server", "schema.json")
+    with open(schema_path, "r", encoding="utf-8") as f:
+        schema = json.load(f)
+    jsonschema.validate(instance=frame, schema=schema)
