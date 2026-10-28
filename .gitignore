@@ -5,13 +5,21 @@ dist/
 *.log
 
 # Python
+.venv
 .venv/
 __pycache__/
 .pytest_cache/
 *.py[cod]
 
-# Training
-training/
+# Checkpoints, runs, and weights
+checkpoints/
+runs/
+*.pt
+*.ckpt
+*.tfevents*
+*.bin
+*.csv
+*.jsonl
 
 # OS
 .DS_Store

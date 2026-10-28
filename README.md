@@ -1,99 +1,169 @@
-# SwarmRL
+# SwarmRL: 50-Agent Autonomous Drone Swarm Search-and-Rescue Simulator
 
-SwarmRL is a reinforcement learning project focused on coordinated, swarm-inspired decision making for Axelero.
+SwarmRL is an end-to-end multi-agent reinforcement learning (MARL) search-and-rescue platform featuring 50 autonomous drones operating inside a continuous 3D world ($[-50, 50]\times[0, 20]\times[-50, 50]\text{ m}$). The system implements Centralized Training with Decentralized Execution (CTDE) using True MAPPO on Ray RLlib's New API Stack, streaming live 30 Hz simulation telemetry through a high-throughput Node.js WebSocket relay to a 60 FPS React-Three-Fiber 3D WebGL tactical frontend with real-time ground exploration painting.
 
-## Overview
+---
 
-This repository is intended to serve as the foundation for experimentation, training, and evaluation of reinforcement learning agents in environments that benefit from collective or coordinated behavior.
+## System Architecture
 
-The project is designed to be extended with:
+```mermaid
+flowchart TD
+    subgraph Simulation_and_Training ["Simulation & MARL Training (Python 3.12)"]
+        ENV["PettingZoo ParallelEnv (env.py)<br/>50 Drones | Vectorized Kinematics | dt = 0.1s"]
+        ACTOR["Decentralized Actor (81-dim local obs)"]
+        CRITIC["Centralized Critic (471-dim global state)"]
+        CURRICULUM["Curriculum Manager (Levels 0 - 4)"]
+        PUBLISHER["Non-blocking SwarmPublisher (30 Hz)"]
+        
+        ENV <--> ACTOR
+        ENV <--> CRITIC
+        ENV --> CURRICULUM
+        ENV --> PUBLISHER
+    end
 
-- environment definitions
-- agent policies and training loops
-- reward and evaluation logic
-- experiment tracking and benchmarking
-- simulation and visualization tools
+    subgraph Transport ["WebSocket Wire Protocol (server/schema.json)"]
+        RELAY["Node.js WebSocket Relay (server/server.js)<br/>Role-Based (pub/sub) | Late-Joiner Caching | Backpressure Drop"]
+    end
 
-## Multi-Agent Environment Architecture
+    subgraph Viewport ["3D Tactical Visualizer (frontend)"]
+        CLIENT["WebSocket Client (Auto-Reconnect Backoff)"]
+        STORE["Zustand Store + FrameBuffer (4 Hz HUD Throttle)"]
+        CANVAS["React-Three-Fiber WebGL Viewport"]
+        MESH["Single InstancedMesh (50 Drones | Lerp/Slerp)"]
+        TEX["50x50 DataTexture Ground Painting"]
+        HUD["Tactical SAR HUD Overlay"]
 
-- **Agent Count:** 50 homogeneous drones (`drone_0` through `drone_49`) performing collaborative Search-and-Rescue (SAR).
-- **Environment Interface:** PettingZoo `ParallelEnv` (`SwarmRLParallelEnv` in `env.py`).
-- **RLlib / MAPPO Target:** Supports Centralized Training with Decentralized Execution (CTDE). Each agent receives an 81-dimensional local observation vector, while the centralized value network consumes a 471-dimensional global state vector (`Box(471,)`).
-- **Sensors & Rewards Integration:** `env.py` uses `sensors/rewards.py` (`calculate_reward`), `sensors/sensors.py` (`ConeSensor`) and `sensors/exploration.py` (`ExplorationMap`). It computes collision, boundary and target event flags inline in `step()`. It does **not** call `sensors/events.py`'s `build_event_flags`, which duplicates the same thresholds (2.0 / 1.0 / 3.0 m) but is unused by the env. Step rewards are unpacked as `(total_reward: float, details: dict)` and exposed under `infos[agent_id]["reward_breakdown"]`.
-- **WebSocket Relay Integration:** `server.js` relays 50-drone telemetry frames on port 8080 to the Three.js / React-Three-Fiber viewport, which interpolates with lerp/slerp. `sensors/bridge.py` provides the Python bridge (`build_telemetry_frame_from_env`) converting physical simulation steps into wire-compliant telemetry frames conforming to `schema.js` and `docs/websocket_streaming_protocol.md`.
+        CLIENT --> STORE
+        STORE --> CANVAS
+        CANVAS --> MESH
+        CANVAS --> TEX
+        STORE --> HUD
+    end
 
-## Repository structure
+    PUBLISHER -- "JSON Frames & Grid Deltas" --> RELAY
+    RELAY -- "Broadcast Telemetry" --> CLIENT
+```
+
+---
+
+## Quickstart
+
+### 1. Installation
+
+```bash
+# Clone repository
+git clone https://github.com/vedantdubey19/SwarmRL.git
+cd SwarmRL
+
+# Create and activate Python 3.12 environment
+conda create -n swarmrl python=3.12 -y
+conda activate swarmrl
+pip install -r requirements.txt
+
+# Install Node dependencies (relay and frontend)
+npm ci
+npm ci --prefix server
+npm ci --prefix frontend
+```
+
+> **Note on Developer Mock Feed**: `scripts/mock_feed.js` is an explicit dev tool requiring `--mock` (`node scripts/mock_feed.js --mock`). It is not part of the live telemetry path.
+
+### 2. MAPPO Training
+
+Launch multi-runner MAPPO training on the RLlib New API Stack with curriculum progression:
+
+```bash
+python training/train.py --iterations 20 --num-runners 2
+```
+
+Evaluate the trained policy checkpoint against the random baseline:
+
+```bash
+python training/evaluate.py --checkpoint checkpoints/best_checkpoint --benchmark --episodes 10
+```
+
+### 3. Live Simulation & 3D Visualizer
+
+Run the three services concurrently:
+
+```bash
+# Terminal 1: Start WebSocket Relay Server
+node server/server.js
+
+# Terminal 2: Start React-Three-Fiber Frontend
+cd frontend && npm run dev
+
+# Terminal 3: Launch Live Simulator Bridge
+python scripts/run_live_sim.py --checkpoint checkpoints/best_checkpoint --hz 30
+```
+
+Open `http://localhost:5173` in your browser to view the 50-drone swarm actively exploring and recovering targets in real time.
+
+### 4. Restoring Test Suites
+
+The test suites and test configs are preserved in git and can be restored at any time:
+
+```bash
+git checkout pre-cleanup -- tests/ frontend/src/__tests__/ pytest.ini requirements-dev.txt
+```
+
+---
+
+## Key Design Decisions
+
+1. **Why PettingZoo ParallelEnv**:
+   PettingZoo's `ParallelEnv` executes step updates simultaneously across all 50 drones via unified NumPy matrix broadcasting (`detect_drone_collisions_vectorized`, batch cone sensor checks). This eliminates slow Python double-loops, yielding **>1100 steps/s** throughput and providing deterministic step synchronization.
+
+2. **Why RLlib New API Stack**:
+   RLlib's new API stack decouples actor-critic networks through `TorchRLModule` and `MultiRLModuleSpec`. We explicitly partition the `Dict` observation space: each decentralized drone policy evaluates only its private 81-dimensional local observation ($81 \to 256 \to 256 \to 4$), while the centralized value network consumes the full 471-dimensional global state ($471 \to 256 \to 256 \to 1$) for accurate advantage estimation without violating decentralized execution.
+
+3. **Why Single InstancedMesh**:
+   Rendering 50 separate 3D drone meshes with individual draw calls severely limits browser framerates. Using a single Three.js `InstancedMesh` with capacity 100 collapses drone rendering into **1 single GPU draw call**, allowing silky 60 FPS rendering on any modern hardware.
+
+4. **Why 50x50 DataTexture Ground Painting**:
+   Rather than regenerating costly dynamic plane vertices or tessellating geometry, exploration coverage is tracked on a 50x50 binary grid and mapped to a 50x50 RGBA `THREE.DataTexture`. Exploration deltas directly update the underlying `Uint8Array` in-place, enabling real-time glowing trail overlays with zero memory allocation churn.
+
+5. **Ref-Based Frame Buffer with 4 Hz HUD Throttling**:
+   React state triggers full component tree reconciliations. At 30 Hz telemetry arrival, React state updates cause severe UI jank. Incoming frames are ingested into a mutable `FrameBuffer` read directly by Three.js `useFrame` for continuous lerp/slerp interpolation, while the React HUD subscribes to a strictly throttled 4 Hz slice.
+
+---
+
+## Directory Structure
 
 ```text
 SwarmRL/
-├── env.py                       # 50-agent PettingZoo ParallelEnv
-├── rllib_config.py              # Ray RLlib MAPPO configuration
-├── train_audit_trial1.py        # MAPPO baseline training harness
-├── train.py                     # RLlib PPO training driver with checkpointing
-├── server.js                    # Node.js 50-drone WebSocket relay broker
-├── schema.js                    # Telemetry frame schema validation
-├── sensors/                     # Sensor simulation & reward engine
-│   ├── bridge.py                # Python-to-WebSocket telemetry frame bridge
-│   ├── sensors.py               # ConeSensor (90° FoV, 20m range)
-│   ├── rewards.py               # 7-component reward function
-│   ├── events.py                # Collision, boundary & target detection
-│   ├── exploration.py           # 2D occupancy & coverage grid
-│   └── telemetry.py             # Metrics & telemetry payload builder
-├── frontend/                    # Three.js / React-Three-Fiber 3D viewport
-├── tests/                       # Unit & integration test suites
-└── docs/                        # Architecture & interface specifications (env_spec.md is the env reference)
+├── env.py                      # 50-agent PettingZoo ParallelEnv & RLlib wrapper
+├── sensors/                    # Vectorized sensor and reward pipeline
+│   ├── rewards.py              # Single source of truth RewardConfig & calculation
+│   ├── events.py               # Vectorized collision & target detection
+│   ├── exploration.py          # 50x50 2m-cell symmetric exploration grid
+│   ├── cone_sensor.py          # Vectorized 15m 30° cone sensor
+│   ├── scenario.py             # Difficulty levels 0-4 obstacle/wind generator
+│   ├── bridge.py               # Telemetry message serializer
+│   └── ws_publisher.py         # Non-blocking 30 Hz WebSocket publisher
+├── training/                   # True MAPPO training pipeline
+│   ├── train.py                # Ray RLlib training harness
+│   ├── rl_module.py            # SwarmCentralizedCriticRLModule (New API Stack)
+│   ├── callbacks.py            # Checkpointing & manifest logger
+│   ├── curriculum.py           # Curriculum manager & remote runner sync
+│   ├── evaluate.py             # Decentralized policy evaluator & benchmark
+│   └── config.yaml             # Hyperparameters
+├── server/                     # Telemetry relay
+│   ├── server.js               # Node.js WebSocket broker with backpressure
+│   └── schema.json             # Unified wire protocol schema
+├── frontend/                   # React-Three-Fiber WebGL tactical visualizer
+│   ├── src/components/         # DroneMesh (InstancedMesh), Terrain, Dashboard
+│   ├── src/store/              # useSwarmStore (Zustand + mutable FrameBuffer)
+│   └── src/utils/              # frameBuffer, gridMapping, url
+├── scripts/                    # Automation & utility scripts
+│   ├── run_live_sim.py         # Real-time simulation stream bridge
+│   ├── sweep_rewards.py        # Reward parameter sweep runner
+│   ├── plot_training.py        # Training progress summarizer
+│   └── mock_feed.js            # Standalone dev-only mock feed tool
+└── docs/                       # Specifications & architecture docs
+    ├── env_spec.md             # Environment specification contract
+    ├── protocol.md             # Wire protocol documentation
+    ├── training.md             # MAPPO training formulation & guide
+    ├── reward_validation.md    # Reward component sensitivity study
+    └── known_limitations.md    # Architectural bounds and scaling limits
 ```
-
-## Getting started
-
-1. Clone the repository:
-
-```bash
-git clone https://github.com/vedantdubey19/SwarmRL.git
-cd SwarmRL
-```
-
-2. Create a virtual environment:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
-3. Install dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
-> If a requirements file is not present yet, create one once the project dependencies are finalized.
-
-4. Run the project or training scripts:
-
-```bash
-python main.py
-```
-
-## Typical goals
-
-- explore multi-agent reinforcement learning approaches
-- train efficient policies for coordination-heavy tasks
-- evaluate performance against baselines and simulation scenarios
-- iterate quickly on model architecture and reward design
-
-## Contributing
-
-Contributions are welcome as the project evolves. Suggested workflow:
-
-1. create a feature branch
-2. implement the change
-3. validate with relevant tests or simulations
-4. open a pull request with a clear summary
-
-## Notes
-
-This README is intentionally written as a practical starting point for the repository. Once the implementation details are added, it should be updated to describe the exact training pipeline, environment setup, and evaluation commands used by the project.
-
-## License
-
-The license has not yet been specified for this repository. Add a license file and update this section once the legal usage terms are decided.

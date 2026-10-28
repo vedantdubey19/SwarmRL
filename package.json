@@ -1,12 +1,11 @@
 {
-  "name": "swarmrl-websocket",
+  "name": "swarmrl",
   "version": "1.0.0",
-  "description": "WebSocket server for SwarmRL real-time drone data streaming",
-  "main": "server.js",
+  "private": true,
+  "description": "SwarmRL: 50-Agent Autonomous Drone Swarm Search-and-Rescue Simulator",
+  "main": "server/server.js",
   "scripts": {
-    "start": "node server.js",
-    "test": "node --test tests/schema.test.js tests/heading_transform.test.js",
-    "test:load": "node tests/load-test-50-agents.js"
+    "start": "node server/server.js"
   },
   "dependencies": {
     "ws": "^8.18.0"

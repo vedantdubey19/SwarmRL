@@ -2,19 +2,20 @@ import React, { useRef, useEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
-import { useSwarmStore } from '../store/useSwarmStore';
-import { globalSyncBuffer } from '../utils/syncBuffer';
+import { useSwarmStore, mutableSimState } from '../store/useSwarmStore';
 
 export default function CameraRig() {
   const controlsRef = useRef();
   const { camera } = useThree();
-  const { selectedDroneId, cameraMode, setRenderFps } = useSwarmStore();
+  const selectedDroneId = useSwarmStore((s) => s.selectedDroneId);
+  const setFps = useSwarmStore((s) => s.setFps);
 
   const fpsFrames = useRef(0);
-  const fpsLastTime = useRef(performance.now());
+  const fpsLastTime = useRef(0);
 
   useEffect(() => {
-    camera.position.set(0, 45, 65);
+    fpsLastTime.current = performance.now();
+    camera.position.set(0, 50, 70);
     camera.lookAt(0, 0, 0);
   }, [camera]);
 
@@ -24,22 +25,19 @@ export default function CameraRig() {
     const now = performance.now();
     if (now - fpsLastTime.current >= 1000) {
       const calculatedFps = Math.round((fpsFrames.current * 1000) / (now - fpsLastTime.current));
-      setRenderFps(calculatedFps);
+      setFps(calculatedFps);
       fpsFrames.current = 0;
       fpsLastTime.current = now;
     }
 
-    // 2. Camera Tracking in Follow Mode
-    if (cameraMode === 'follow' && selectedDroneId) {
-      const agentState = globalSyncBuffer.getInterpolatedState(selectedDroneId);
-      if (agentState) {
-        const targetPos = new THREE.Vector3(agentState.x, agentState.y + 6, agentState.z + 12);
-        camera.position.lerp(targetPos, 0.08);
+    // 2. Camera Tracking if a drone is selected
+    if (selectedDroneId !== null) {
+      const drones = mutableSimState.frameBuffer.getInterpolatedDrones();
+      const drone = drones.find((d) => (d.id ?? d.agent_id) === selectedDroneId);
+      if (drone && drone.interpolatedPosition) {
+        const [x, y, z] = drone.interpolatedPosition;
         if (controlsRef.current) {
-          controlsRef.current.target.lerp(
-            new THREE.Vector3(agentState.x, agentState.y, agentState.z),
-            0.08
-          );
+          controlsRef.current.target.lerp(new THREE.Vector3(x, y, z), 0.08);
         }
       }
     }
@@ -52,8 +50,8 @@ export default function CameraRig() {
       enableDamping
       dampingFactor={0.05}
       minDistance={5}
-      maxDistance={150}
-      maxPolarAngle={Math.PI / 2.05}
+      maxDistance={180}
+      maxPolarAngle={Math.PI / 2.02}
     />
   );
 }

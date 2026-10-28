@@ -1,0 +1,7 @@
+ray[rllib]==2.59.0
+torch==2.14.1
+gymnasium==1.2.2
+pettingzoo==1.27.0
+numpy==2.5.4
+pyyaml==6.0.3
+websockets==17.3
