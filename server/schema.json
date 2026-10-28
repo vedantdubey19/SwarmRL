@@ -1,0 +1,187 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SwarmRL WebSocket Protocol Schema",
+  "oneOf": [
+    { "$ref": "#/definitions/RegisterMessage" },
+    { "$ref": "#/definitions/WorldMessage" },
+    { "$ref": "#/definitions/FrameMessage" },
+    { "$ref": "#/definitions/GridSnapshotMessage" },
+    { "$ref": "#/definitions/GridDeltaMessage" }
+  ],
+  "definitions": {
+    "RegisterMessage": {
+      "type": "object",
+      "required": ["type", "role"],
+      "properties": {
+        "type": { "const": "register" },
+        "role": { "enum": ["publisher", "subscriber"] }
+      },
+      "additionalProperties": false
+    },
+    "WorldMessage": {
+      "type": "object",
+      "required": ["type", "bounds", "obstacles", "targets"],
+      "properties": {
+        "type": { "const": "world" },
+        "bounds": {
+          "type": "object",
+          "required": ["x_min", "x_max", "y_min", "y_max", "z_min", "z_max"],
+          "properties": {
+            "x_min": { "type": "number" },
+            "x_max": { "type": "number" },
+            "y_min": { "type": "number" },
+            "y_max": { "type": "number" },
+            "z_min": { "type": "number" },
+            "z_max": { "type": "number" }
+          }
+        },
+        "obstacles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "position", "radius"],
+            "properties": {
+              "id": { "type": "string" },
+              "type": { "type": "string" },
+              "position": {
+                "type": "array",
+                "items": { "type": "number" },
+                "minItems": 3,
+                "maxItems": 3
+              },
+              "radius": { "type": "number" },
+              "height": { "type": "number" }
+            }
+          }
+        },
+        "targets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "position", "found"],
+            "properties": {
+              "id": { "type": "string" },
+              "type": { "type": "string" },
+              "position": {
+                "type": "array",
+                "items": { "type": "number" },
+                "minItems": 3,
+                "maxItems": 3
+              },
+              "radius": { "type": "number" },
+              "found": { "type": "boolean" }
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "Detection": {
+      "type": "object",
+      "required": ["id", "type", "distance"],
+      "properties": {
+        "id": { "type": ["string", "number"] },
+        "type": { "type": "string" },
+        "distance": { "type": "number" },
+        "bearing_x": { "type": "number" },
+        "bearing_y": { "type": "number" },
+        "angle": { "type": "number" }
+      }
+    },
+    "DroneState": {
+      "type": "object",
+      "required": ["id", "position", "velocity", "quaternion", "heading", "status", "detections"],
+      "properties": {
+        "id": { "type": ["string", "number"] },
+        "agent_id": { "type": "string" },
+        "position": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "velocity": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "quaternion": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 4,
+          "maxItems": 4
+        },
+        "heading": { "type": "number" },
+        "status": { "type": "string" },
+        "detections": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/Detection" },
+          "maxItems": 8
+        }
+      }
+    },
+    "Metrics": {
+      "type": "object",
+      "required": ["explored_fraction", "collision_totals", "targets_found", "active_agents", "difficulty"],
+      "properties": {
+        "explored_fraction": { "type": "number" },
+        "collision_totals": {
+          "type": "object",
+          "required": ["drone", "obstacle", "boundary", "total"],
+          "properties": {
+            "drone": { "type": "integer" },
+            "obstacle": { "type": "integer" },
+            "boundary": { "type": "integer" },
+            "total": { "type": "integer" }
+          }
+        },
+        "targets_found": { "type": "integer" },
+        "active_agents": { "type": "integer" },
+        "difficulty": { "type": "integer" },
+        "step_reward_sum": { "type": "number" }
+      }
+    },
+    "FrameMessage": {
+      "type": "object",
+      "required": ["type", "step", "timestamp", "drones", "metrics"],
+      "properties": {
+        "type": { "const": "frame" },
+        "step": { "type": "integer" },
+        "timestamp": { "type": "number" },
+        "sim_time": { "type": "number" },
+        "drones": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/DroneState" }
+        },
+        "metrics": { "$ref": "#/definitions/Metrics" }
+      },
+      "additionalProperties": true
+    },
+    "GridSnapshotMessage": {
+      "type": "object",
+      "required": ["type", "step", "width", "height", "bitmask"],
+      "properties": {
+        "type": { "const": "grid_snapshot" },
+        "step": { "type": "integer" },
+        "width": { "type": "integer" },
+        "height": { "type": "integer" },
+        "bitmask": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "GridDeltaMessage": {
+      "type": "object",
+      "required": ["type", "step", "new_cells"],
+      "properties": {
+        "type": { "const": "grid_delta" },
+        "step": { "type": "integer" },
+        "new_cells": {
+          "type": "array",
+          "items": { "type": "integer" }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
