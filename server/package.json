@@ -1,0 +1,16 @@
+{
+  "name": "swarmrl-relay",
+  "version": "1.0.0",
+  "description": "High-throughput WebSocket relay broker for SwarmRL drone telemetry",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node ../tests/relay.test.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
