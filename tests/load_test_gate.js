@@ -1,4 +1,13 @@
-const WebSocket = require('ws');
+let WebSocket;
+try {
+  WebSocket = require('ws');
+} catch (e) {
+  try {
+    WebSocket = require('../server/node_modules/ws');
+  } catch (e2) {
+    throw e;
+  }
+}
 const { createRelayServer } = require('../server/server');
 
 async function runLoadTest() {

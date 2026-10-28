@@ -5,7 +5,16 @@
  * Usage: node scripts/mock_feed.js --mock
  */
 
-const WebSocket = require('ws');
+let WebSocket;
+try {
+  WebSocket = require('ws');
+} catch (e) {
+  try {
+    WebSocket = require('../server/node_modules/ws');
+  } catch (e2) {
+    throw e;
+  }
+}
 
 if (!process.argv.includes('--mock')) {
   console.error('ERROR: scripts/mock_feed.js is a developer-only tool and requires the --mock flag to run.');

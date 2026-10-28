@@ -60,7 +60,8 @@ conda create -n swarmrl python=3.12 -y
 conda activate swarmrl
 pip install -r requirements.txt -r requirements-dev.txt
 
-# Install Node dependencies for server and frontend
+# Install Node dependencies (relay, test harness, and frontend)
+npm ci
 npm ci --prefix server
 npm ci --prefix frontend
 ```
