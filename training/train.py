@@ -36,7 +36,6 @@ from ray.tune.registry import register_env
 from env import SwarmRLParallelEnv
 from training.rl_module import SwarmCentralizedCriticRLModule
 from training.callbacks import SwarmTrainingCallback, get_git_commit
-from training.curriculum import CurriculumCallback
 
 
 def _write_checkpoint_manifest(checkpoint_path: str, iteration: int, reward: float, is_best: bool = False) -> None:

@@ -193,21 +193,6 @@ def build_frame_message(
     }
 
 
-def build_telemetry_frame_from_env(
-    env: Any,
-    infos: Optional[dict[str, Any]] = None,
-    step_reward_sum: float = 0.0,
-    timestamp: Optional[float] = None,
-) -> dict[str, Any]:
-    """Alias for backwards compatibility with tests."""
-    msg = build_frame_message(env, infos=infos, step_reward_sum=step_reward_sum, timestamp=timestamp)
-    targets_payload = []
-    for idx, target in enumerate(env.targets):
-        targets_payload.append(build_telemetry_target_state(target, idx))
-    msg["targets"] = targets_payload
-    return msg
-
-
 def build_grid_snapshot_message(env: Any) -> dict[str, Any]:
     grid = env.exploration_map.grid  # (50, 50) bool
     packed = np.packbits(grid.flatten()).tobytes()
@@ -227,16 +212,3 @@ def build_grid_delta_message(step: int, newly_explored_indices: list[int]) -> di
         "step": int(step),
         "new_cells": [int(idx) for idx in newly_explored_indices],
     }
-
-
-def create_registration_message(role: str = "publisher") -> dict[str, str]:
-    if role not in ("publisher", "subscriber"):
-        raise ValueError(f"Invalid role '{role}'. Must be 'publisher' or 'subscriber'.")
-    return {
-        "type": "register",
-        "role": role,
-    }
-
-
-def format_telemetry_json(frame: dict[str, Any]) -> str:
-    return json.dumps(frame, separators=(",", ":"))

@@ -139,16 +139,6 @@ def get_difficulty_config(level: int) -> ScenarioConfig:
     return scenario_preset(level)
 
 
-def curriculum_scenarios(seed: int = 42) -> list[ScenarioConfig]:
-    return [
-        scenario_preset(ScenarioLevel.BASELINE, seed=seed),
-        scenario_preset(ScenarioLevel.EASY, seed=seed + 1),
-        scenario_preset(ScenarioLevel.MEDIUM, seed=seed + 2),
-        scenario_preset(ScenarioLevel.HARD, seed=seed + 3),
-        scenario_preset(ScenarioLevel.STRESS, seed=seed + 4),
-    ]
-
-
 def _sample_position(
     generator: np.random.Generator,
     world_size: tuple[float, float],
@@ -237,12 +227,3 @@ def generate_spawn_positions(num_agents: int = 50) -> np.ndarray:
         col = i % cols
         spawns[i] = [start_x + col * spacing, alt, start_z + row * spacing]
     return spawns
-
-
-def scenario_layout(config: ScenarioConfig) -> dict[str, Any]:
-    return {
-        "scenario": config.to_dict(),
-        "agents": generate_agent_positions(config),
-        "obstacles": generate_obstacles(config),
-        "targets": generate_targets(config),
-    }

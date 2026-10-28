@@ -30,10 +30,6 @@ def _position(value: np.ndarray | list[float]) -> np.ndarray:
     return result
 
 
-def distance_between(first: np.ndarray | list[float], second: np.ndarray | list[float]) -> float:
-    return float(np.linalg.norm(_position(first) - _position(second)))
-
-
 def detect_drone_collisions_vectorized(positions: np.ndarray, collision_distance: float = 2.0) -> np.ndarray:
     """Return boolean array of length N indicating if each drone is in collision."""
     num_agents = positions.shape[0]
@@ -187,47 +183,3 @@ def compute_min_neighbor_distance(agent_id: str, positions: dict[str, np.ndarray
         if d < nearest:
             nearest = d
     return nearest if nearest != float("inf") else None
-
-
-def build_event_flags(
-    agent_id: str,
-    drone_positions: dict[str, np.ndarray | list[float]],
-    obstacles: list[dict],
-    targets: list[dict],
-    world_min: np.ndarray | list[float],
-    world_max: np.ndarray | list[float],
-    config: EventConfig | None = None,
-    team_cells: int = 0,
-    team_target_found: bool | None = None,
-    min_neighbor_dist: float | None = None,
-    include_swarm_state: bool = False,
-) -> dict[str, Any]:
-    config = config or EventConfig()
-    drone_cols = detect_drone_collisions(drone_positions, config.drone_collision_distance)
-    obs_cols = detect_obstacle_collisions(drone_positions, obstacles, config.obstacle_collision_distance)
-    targets_f = detect_targets_found(drone_positions, targets, config.target_detection_distance)
-    b_violations = detect_boundary_violations(drone_positions, world_min, world_max, config.boundary_tolerance)
-
-    flags = {
-        "drone_collision": agent_id in drone_cols,
-        "obstacle_collision": agent_id in obs_cols,
-        "target_found": agent_id in targets_f,
-        "boundary_violation": agent_id in b_violations,
-    }
-
-    if include_swarm_state or team_cells != 0 or min_neighbor_dist is not None:
-        resolved_min_dist = (
-            min_neighbor_dist
-            if min_neighbor_dist is not None
-            else compute_min_neighbor_distance(agent_id, drone_positions)
-        )
-        resolved_team_target = (
-            bool(len(targets_f) > 0)
-            if team_target_found is None
-            else bool(team_target_found)
-        )
-        flags["team_cells"] = int(team_cells)
-        flags["team_target_found"] = resolved_team_target
-        flags["min_neighbor_dist"] = resolved_min_dist
-
-    return flags

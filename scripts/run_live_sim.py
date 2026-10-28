@@ -176,6 +176,7 @@ def run_live_simulation(
         total_time = (stream_end_time - stream_start_time) if (stream_start_time and stream_end_time) else 0.001
         mean_fps = step_count / max(0.001, total_time)
         print(f"\n=== Simulation Timing Summary ===")
+        print(f"Total episodes:          {episodes_run}")
         print(f"Total steps:             {step_count}")
         print(f"Total duration:          {total_time:.2f} s")
         print(f"Effective Rate:          {mean_fps:.2f} Hz (Target: {hz} Hz)")
