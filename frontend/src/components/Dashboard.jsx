@@ -1,12 +1,14 @@
 import React from 'react';
 import { useSwarmStore } from '../store/useSwarmStore';
-import { Activity, ShieldAlert, Target, Compass, Wifi, Radio } from 'lucide-react';
+import { Activity, ShieldAlert, Target, Compass, Wifi, Radio, Eye, EyeOff } from 'lucide-react';
 
 export default function Dashboard() {
   const connectionStatus = useSwarmStore((s) => s.connectionStatus);
   const reconnectAttempt = useSwarmStore((s) => s.reconnectAttempt);
   const hudMetrics = useSwarmStore((s) => s.hudMetrics);
   const perfHistory = useSwarmStore((s) => s.perfHistory);
+  const selectedDroneId = useSwarmStore((s) => s.selectedDroneId);
+  const setSelectedDroneId = useSwarmStore((s) => s.setSelectedDroneId);
 
   const {
     exploredFraction,
@@ -65,15 +67,30 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Right Header: Difficulty and Step */}
-        <div className="bg-slate-900/80 backdrop-blur border border-slate-700/60 rounded-xl px-4 py-2 flex items-center gap-4 text-xs font-mono shadow-lg pointer-events-auto">
-          <div>
-            <span className="text-slate-400">Step:</span>{' '}
-            <span className="text-cyan-300 font-bold">{step}</span>
-          </div>
-          <div>
-            <span className="text-slate-400">Difficulty:</span>{' '}
-            <span className="text-amber-400 font-bold">Lvl {difficulty}</span>
+        {/* Right Header: Track Drone, Difficulty and Step */}
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setSelectedDroneId(selectedDroneId === null ? 0 : null)}
+            className={`px-3 py-1.5 rounded-xl border text-xs font-mono flex items-center gap-2 transition cursor-pointer shadow-lg backdrop-blur pointer-events-auto ${
+              selectedDroneId !== null
+                ? 'bg-purple-600/30 text-purple-300 border-purple-500/50 hover:bg-purple-600/40'
+                : 'bg-slate-900/80 text-slate-300 border-slate-700/60 hover:bg-slate-800'
+            }`}
+          >
+            {selectedDroneId !== null ? <Eye className="w-3.5 h-3.5 text-purple-400" /> : <EyeOff className="w-3.5 h-3.5 text-slate-400" />}
+            <span>{selectedDroneId !== null ? `Tracking Drone #${selectedDroneId}` : 'Track Drone'}</span>
+          </button>
+
+          <div className="bg-slate-900/80 backdrop-blur border border-slate-700/60 rounded-xl px-4 py-2 flex items-center gap-4 text-xs font-mono shadow-lg pointer-events-auto">
+            <div>
+              <span className="text-slate-400">Step:</span>{' '}
+              <span className="text-cyan-300 font-bold">{step}</span>
+            </div>
+            <div>
+              <span className="text-slate-400">Difficulty:</span>{' '}
+              <span className="text-amber-400 font-bold">Lvl {difficulty}</span>
+            </div>
           </div>
         </div>
       </div>
