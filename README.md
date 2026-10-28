@@ -160,8 +160,6 @@ SwarmRL/
 │   ├── run_live_sim.py         # Real-time simulation stream bridge
 │   ├── sweep_rewards.py        # Reward parameter sweep runner
 │   └── plot_training.py        # Training progress summarizer
-├── reports/                    # Verification records
-│   └── verification.md         # Master gate verification report
 └── docs/                       # Specifications & architecture docs
     ├── env_spec.md             # Environment specification contract
     ├── protocol.md             # Wire protocol documentation
