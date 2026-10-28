@@ -111,6 +111,7 @@ class ExplorationMap:
             (self.width, self.height),
             dtype=np.bool_,
         )
+        self.last_newly_explored_indices: list[int] = []
 
     @property
     def total_cells(self) -> int:
@@ -135,6 +136,7 @@ class ExplorationMap:
     def reset(self) -> None:
         """Clear the entire explored grid."""
         self.grid.fill(False)
+        self.last_newly_explored_indices = []
 
     def _validate_position(
         self,
@@ -373,6 +375,10 @@ class ExplorationMap:
 
         for column, row in cells_to_mark:
             self.grid[column, row] = True
+
+        self.last_newly_explored_indices = [
+            int(column * self.height + row) for column, row in cells_to_mark
+        ]
 
         return agent_new_cells, len(cells_to_mark)
 
