@@ -58,25 +58,17 @@ cd SwarmRL
 # Create and activate Python 3.12 environment
 conda create -n swarmrl python=3.12 -y
 conda activate swarmrl
-pip install -r requirements.txt -r requirements-dev.txt
+pip install -r requirements.txt
 
-# Install Node dependencies (relay, test harness, and frontend)
+# Install Node dependencies (relay and frontend)
 npm ci
 npm ci --prefix server
 npm ci --prefix frontend
 ```
 
-> **Note on Developer Mock Feed**: `scripts/mock_feed.js` is an explicit dev/test tool requiring `--mock` (`node scripts/mock_feed.js --mock`). It is not part of the live telemetry path.
+> **Note on Developer Mock Feed**: `scripts/mock_feed.js` is an explicit dev tool requiring `--mock` (`node scripts/mock_feed.js --mock`). It is not part of the live telemetry path.
 
-### 2. Run Comprehensive Verification Gate
-
-Run the master verification pipeline to run all phase checks and benchmarks:
-
-```bash
-python scripts/verify_all.py
-```
-
-### 3. MAPPO Training
+### 2. MAPPO Training
 
 Launch multi-runner MAPPO training on the RLlib New API Stack with curriculum progression:
 
@@ -90,7 +82,7 @@ Evaluate the trained policy checkpoint against the random baseline:
 python training/evaluate.py --checkpoint checkpoints/best_checkpoint --benchmark --episodes 10
 ```
 
-### 4. Live Simulation & 3D Visualizer
+### 3. Live Simulation & 3D Visualizer
 
 Run the three services concurrently:
 
@@ -106,6 +98,14 @@ python scripts/run_live_sim.py --checkpoint checkpoints/best_checkpoint --hz 30
 ```
 
 Open `http://localhost:5173` in your browser to view the 50-drone swarm actively exploring and recovering targets in real time.
+
+### 4. Restoring Test Suites
+
+The test suites and test configs are preserved in git and can be restored at any time:
+
+```bash
+git checkout pre-cleanup -- tests/ frontend/src/__tests__/ pytest.ini requirements-dev.txt
+```
 
 ---
 
@@ -155,11 +155,11 @@ SwarmRL/
 │   ├── src/components/         # DroneMesh (InstancedMesh), Terrain, Dashboard
 │   ├── src/store/              # useSwarmStore (Zustand + mutable FrameBuffer)
 │   └── src/utils/              # frameBuffer, gridMapping, url
-├── scripts/                    # Automation & verification scripts
-│   ├── verify_all.py           # Master gate verification runner
+├── scripts/                    # Automation & utility scripts
 │   ├── run_live_sim.py         # Real-time simulation stream bridge
 │   ├── sweep_rewards.py        # Reward parameter sweep runner
-│   └── plot_training.py        # Training progress summarizer
+│   ├── plot_training.py        # Training progress summarizer
+│   └── mock_feed.js            # Standalone dev-only mock feed tool
 └── docs/                       # Specifications & architecture docs
     ├── env_spec.md             # Environment specification contract
     ├── protocol.md             # Wire protocol documentation

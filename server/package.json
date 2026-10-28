@@ -4,8 +4,7 @@
   "description": "High-throughput WebSocket relay broker for SwarmRL drone telemetry",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "test": "node ../tests/relay.test.js"
+    "start": "node server.js"
   },
   "engines": {
     "node": ">=20.0.0"

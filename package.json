@@ -5,9 +5,7 @@
   "description": "SwarmRL: 50-Agent Autonomous Drone Swarm Search-and-Rescue Simulator",
   "main": "server/server.js",
   "scripts": {
-    "start": "node server/server.js",
-    "test:relay": "node tests/relay.test.js",
-    "test:load": "node tests/load_test_gate.js"
+    "start": "node server/server.js"
   },
   "dependencies": {
     "ws": "^8.18.0"

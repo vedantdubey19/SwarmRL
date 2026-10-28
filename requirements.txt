@@ -5,4 +5,3 @@ pettingzoo==1.27.0
 numpy==2.5.4
 pyyaml==6.0.3
 websockets==17.3
-jsonschema==4.26.0
