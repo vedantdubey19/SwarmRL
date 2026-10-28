@@ -1,73 +1,115 @@
-import React, { useMemo } from 'react';
+import React from 'react';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { mutableSimState, useSwarmStore } from '../store/useSwarmStore';
 
-export default function Terrain({ size = 120, segments = 64 }) {
-  // Generate procedural height elevations
-  const { geometry, colors } = useMemo(() => {
-    const geo = new THREE.PlaneGeometry(size, size, segments, segments);
-    geo.rotateX(-Math.PI / 2); // Lay flat on the XZ plane
+const sharedDataTexture = new THREE.DataTexture(
+  mutableSimState.gridBuffer,
+  50,
+  50,
+  THREE.RGBAFormat,
+  THREE.UnsignedByteType
+);
+sharedDataTexture.minFilter = THREE.LinearFilter;
+sharedDataTexture.magFilter = THREE.NearestFilter;
+sharedDataTexture.wrapS = THREE.ClampToEdgeWrapping;
+sharedDataTexture.wrapT = THREE.ClampToEdgeWrapping;
+sharedDataTexture.flipY = false;
+sharedDataTexture.needsUpdate = true;
 
-    const pos = geo.attributes.position;
-    const colorArray = new Float32Array(pos.count * 3);
+export default function Terrain() {
+  const world = useSwarmStore((s) => s.world);
 
-    // Color definitions based on elevation
-    const colorLow = new THREE.Color('#0f172a');     // Deep valley navy
-    const colorMid = new THREE.Color('#1e293b');     // Mid ground slate
-    const colorHigh = new THREE.Color('#0369a1');    // Mountain peak electric sky
-
-    for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i);
-      const z = pos.getZ(i);
-
-      // Procedural multi-frequency elevation formula
-      const elevation =
-        Math.sin(x * 0.08) * Math.cos(z * 0.08) * 3.5 +
-        Math.sin(x * 0.03 + 1.2) * Math.cos(z * 0.03 + 0.8) * 4.0;
-
-      pos.setY(i, elevation);
-
-      // Height-based gradient interpolation
-      const normalizedHeight = (elevation + 6) / 12; // Normalize roughly 0 to 1
-      const vertexColor = new THREE.Color();
-
-      if (normalizedHeight < 0.5) {
-        vertexColor.lerpColors(colorLow, colorMid, normalizedHeight * 2);
-      } else {
-        vertexColor.lerpColors(colorMid, colorHigh, (normalizedHeight - 0.5) * 2);
-      }
-
-      colorArray[i * 3] = vertexColor.r;
-      colorArray[i * 3 + 1] = vertexColor.g;
-      colorArray[i * 3 + 2] = vertexColor.b;
+  useFrame(() => {
+    if (mutableSimState.gridNeedsUpdate) {
+      sharedDataTexture.needsUpdate = true;
+      mutableSimState.gridNeedsUpdate = false;
     }
+  });
 
-    geo.setAttribute('color', new THREE.BufferAttribute(colorArray, 3));
-    geo.computeVertexNormals();
-
-    return { geometry: geo, colors: colorArray };
-  }, [size, segments]);
+  // Extract obstacles & targets
+  const obstacles = world?.obstacles || [];
+  const targets = world?.targets || [];
 
   return (
-    <group position={[0, -0.5, 0]}>
-      {/* Shaded topographical surface */}
-      <mesh geometry={geometry} receiveShadow>
+    <group>
+      {/* Exploration Map Ground Plane: 100m x 100m at Y = 0 */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
+        <planeGeometry args={[100, 100]} />
         <meshStandardMaterial
-          vertexColors
-          roughness={0.8}
+          map={sharedDataTexture}
+          roughness={0.6}
           metalness={0.2}
-          wireframe={false}
         />
       </mesh>
 
-      {/* Wireframe contour overlay for tactical search-and-rescue radar aesthetic */}
-      <mesh geometry={geometry} position={[0, 0.02, 0]}>
+      {/* Subtle world boundary grid frame */}
+      <gridHelper args={[100, 50, '#38bdf8', '#1e293b']} position={[0, 0.01, 0]} />
+
+      {/* World Boundary Wireframe Box (X: -50..50, Y: 0..20, Z: -50..50) */}
+      <mesh position={[0, 10, 0]}>
+        <boxGeometry args={[100, 20, 100]} />
         <meshBasicMaterial
-          color="#38bdf8"
+          color="#0ea5e9"
           wireframe
           transparent
-          opacity={0.12}
+          opacity={0.15}
         />
       </mesh>
+
+      {/* World Obstacles */}
+      {obstacles.map((obs, idx) => {
+        const shape = obs.shape || (obs.radius ? 'cylinder' : 'box');
+        const pos = obs.position || [obs.x || 0, obs.y || 0, obs.z || 0];
+
+        if (shape === 'cylinder' || obs.radius) {
+          const r = obs.radius || 2;
+          const h = obs.height || 10;
+          return (
+            <mesh key={`obs-${idx}`} position={[pos[0], h / 2, pos[2]]} castShadow receiveShadow>
+              <cylinderGeometry args={[r, r, h, 16]} />
+              <meshStandardMaterial color="#334155" roughness={0.7} metalness={0.3} />
+            </mesh>
+          );
+        }
+
+        const size = obs.size || [obs.dx || 4, obs.dy || 10, obs.dz || 4];
+        return (
+          <mesh key={`obs-${idx}`} position={[pos[0], size[1] / 2, pos[2]]} castShadow receiveShadow>
+            <boxGeometry args={[size[0], size[1], size[2]]} />
+            <meshStandardMaterial color="#334155" roughness={0.7} metalness={0.3} />
+          </mesh>
+        );
+      })}
+
+      {/* World Targets */}
+      {targets.map((tgt, idx) => {
+        const pos = tgt.position || [tgt.x || 0, tgt.y || 1, tgt.z || 0];
+        const isFound = tgt.found || false;
+
+        return (
+          <group key={`tgt-${idx}`} position={[pos[0], pos[1], pos[2]]}>
+            <mesh castShadow>
+              <sphereGeometry args={[1.0, 16, 16]} />
+              <meshStandardMaterial
+                color={isFound ? '#10b981' : '#eab308'}
+                emissive={isFound ? '#059669' : '#ca8a04'}
+                emissiveIntensity={isFound ? 0.5 : 2.0}
+                roughness={0.2}
+              />
+            </mesh>
+            {/* Target Beacon Pulse Cylinder */}
+            <mesh position={[0, 5, 0]}>
+              <cylinderGeometry args={[0.08, 0.08, 10, 8]} />
+              <meshBasicMaterial
+                color={isFound ? '#10b981' : '#facc15'}
+                transparent
+                opacity={isFound ? 0.2 : 0.6}
+              />
+            </mesh>
+          </group>
+        );
+      })}
     </group>
   );
 }
