@@ -24,6 +24,8 @@ import ray.tune.trainable.trainable
 ray.train.constants.DEFAULT_STORAGE_PATH = local_ray_results
 ray.tune.trainable.trainable.DEFAULT_STORAGE_PATH = local_ray_results
 
+import datetime
+import json
 import ray
 from ray.rllib.algorithms.ppo import PPOConfig
 from ray.rllib.core.rl_module.rl_module import RLModuleSpec
@@ -33,8 +35,23 @@ from ray.tune.registry import register_env
 
 from env import SwarmRLParallelEnv
 from training.rl_module import SwarmCentralizedCriticRLModule
-from training.callbacks import SwarmTrainingCallback
+from training.callbacks import SwarmTrainingCallback, get_git_commit
 from training.curriculum import CurriculumCallback
+
+
+def _write_checkpoint_manifest(checkpoint_path: str, iteration: int, reward: float, is_best: bool = False) -> None:
+    manifest = {
+        "iteration": iteration,
+        "reward": round(reward, 4),
+        "git_commit": get_git_commit(),
+        "timestamp": datetime.datetime.now().isoformat(),
+        "is_best": is_best,
+    }
+    try:
+        with open(os.path.join(checkpoint_path, "manifest.json"), "w", encoding="utf-8") as f:
+            json.dump(manifest, f, indent=2)
+    except Exception:
+        pass
 
 
 def build_algo_config(config_dict: dict):
@@ -144,6 +161,7 @@ def train(iterations: int = 20, config_path: Optional[str] = None):
                     torch.save(module.actor_net.state_dict(), os.path.join(ckpt_path, "actor_weights.pt"))
             except Exception:
                 pass
+            _write_checkpoint_manifest(ckpt_path, iter_idx, ep_ret, is_best=False)
 
         if ep_ret > best_reward:
             best_reward = ep_ret
@@ -155,6 +173,7 @@ def train(iterations: int = 20, config_path: Optional[str] = None):
                     torch.save(module.actor_net.state_dict(), os.path.join(best_path, "actor_weights.pt"))
             except Exception:
                 pass
+            _write_checkpoint_manifest(best_path, iter_idx, ep_ret, is_best=True)
 
     total_time = time.time() - start_time
     print(f"\nTraining completed in {total_time:.2f}s! Best Reward: {best_reward:.2f}")
