@@ -3,6 +3,7 @@ import argparse
 import os
 import sys
 import time
+import numpy as np
 
 # Ensure repository root is on sys.path
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
