@@ -63,15 +63,15 @@ export default function App() {
 
   return (
     <div className="relative w-screen h-screen select-none bg-[#080c14] overflow-hidden">
-      {/* Top-Left Telemetry Header HUD */}
+      
+    {/* Top-Left Telemetry Header HUD */}
       <header className="absolute top-4 left-4 z-10 flex items-center gap-3 bg-slate-900/90 backdrop-blur border border-slate-700/60 px-4 py-2.5 rounded-lg text-white shadow-xl">
         <Radio className="w-5 h-5 text-emerald-400 animate-pulse" />
         <div>
           <h1 className="text-sm font-semibold tracking-wide">SwarmRL Telemetry Viewport</h1>
-          <p className="text-xs text-slate-400">Day 16: MAPPO Cone-of-Vision Sensor Visuals</p>
+          <p className="text-xs text-slate-400">Day 17: Swarm Rendering Optimization & Shared Geometries</p>
         </div>
       </header>
-
       {/* Top-Right HUD Controls */}
       <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
         <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-700/60 px-3 py-2 rounded text-xs text-slate-300">

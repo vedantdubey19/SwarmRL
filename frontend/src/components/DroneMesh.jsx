@@ -3,6 +3,37 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useSwarmStore } from '../store/useSwarmStore';
 import SensorFrustum from './SensorFrustum';
+import {
+  CHASSIS_GEOMETRY,
+  LED_GEOMETRY,
+  ARM_GEOMETRY,
+  MOTOR_GEOMETRY,
+  BLADE_GEOMETRY,
+  DANGER_GEOMETRY,
+  SELECTION_RING_GEOMETRY,
+  CHASSIS_MATERIAL_NORMAL,
+  CHASSIS_MATERIAL_SELECTED,
+  CHASSIS_MATERIAL_COLLISION,
+  ARM_MATERIAL,
+  MOTOR_MATERIAL,
+  BLADE_MATERIAL,
+  DANGER_MATERIAL,
+  SELECTION_MATERIAL,
+} from '../utils/droneAssets';
+
+const ARM_OFFSETS = [
+  [0.8, 0, 0.8, Math.PI / 4],
+  [-0.8, 0, 0.8, -Math.PI / 4],
+  [0.8, 0, -0.8, -Math.PI / 4],
+  [-0.8, 0, -0.8, Math.PI / 4],
+];
+
+const MOTOR_OFFSETS = [
+  [0.8, 0.1, 0.8],
+  [-0.8, 0.1, 0.8],
+  [0.8, 0.1, -0.8],
+  [-0.8, 0.1, -0.8],
+];
 
 export default function DroneMesh({
   id,
@@ -16,12 +47,21 @@ export default function DroneMesh({
   const showCollisionDebug = useSwarmStore((state) => state.showCollisionDebug);
   const showSensorCones = useSwarmStore((state) => state.showSensorCones);
 
-  // Spin rotor blades continuously
+  // High-performance rotor blade rotation
   useFrame((_, delta) => {
-    rotorsRef.current.forEach((rotor) => {
-      if (rotor) rotor.rotation.y += delta * 32;
-    });
+    const rotationDelta = delta * 32;
+    for (let i = 0; i < 4; i++) {
+      if (rotorsRef.current[i]) {
+        rotorsRef.current[i].rotation.y += rotationDelta;
+      }
+    }
   });
+
+  const chassisMaterial = collision
+    ? CHASSIS_MATERIAL_COLLISION
+    : isSelected
+    ? CHASSIS_MATERIAL_SELECTED
+    : CHASSIS_MATERIAL_NORMAL;
 
   const statusColor = collision ? '#ef4444' : isSelected ? '#00f0ff' : '#10b981';
 
@@ -35,18 +75,15 @@ export default function DroneMesh({
       }}
     >
       {/* Central Chassis */}
-      <mesh castShadow receiveShadow>
-        <boxGeometry args={[1.2, 0.25, 1.2]} />
-        <meshStandardMaterial
-          color={collision ? '#7f1d1d' : isSelected ? '#0284c7' : '#1e293b'}
-          roughness={0.3}
-          metalness={0.8}
-        />
-      </mesh>
+      <mesh
+        castShadow
+        receiveShadow
+        geometry={CHASSIS_GEOMETRY}
+        material={chassisMaterial}
+      />
 
       {/* Center Status LED */}
-      <mesh position={[0, 0.16, 0]}>
-        <sphereGeometry args={[0.18, 16, 16]} />
+      <mesh position={[0, 0.16, 0]} geometry={LED_GEOMETRY}>
         <meshStandardMaterial
           color={statusColor}
           emissive={statusColor}
@@ -54,41 +91,27 @@ export default function DroneMesh({
         />
       </mesh>
 
-      {/* Motor Arms */}
-      {[
-        [0.8, 0, 0.8, Math.PI / 4],
-        [-0.8, 0, 0.8, -Math.PI / 4],
-        [0.8, 0, -0.8, -Math.PI / 4],
-        [-0.8, 0, -0.8, Math.PI / 4],
-      ].map(([x, y, z, rot], idx) => (
+      {/* 4 Diagonal Arms (Shared Geometries & Materials) */}
+      {ARM_OFFSETS.map(([x, y, z, rot], idx) => (
         <group key={idx} position={[x * 0.5, y, z * 0.5]} rotation={[0, rot, 0]}>
-          <mesh>
-            <cylinderGeometry args={[0.04, 0.04, 1.2, 8]} />
-            <meshStandardMaterial color="#475569" metalness={0.9} roughness={0.2} />
-          </mesh>
+          <mesh geometry={ARM_GEOMETRY} material={ARM_MATERIAL} />
         </group>
       ))}
 
-      {/* Motors & Blades */}
-      {[
-        [0.8, 0.1, 0.8],
-        [-0.8, 0.1, 0.8],
-        [0.8, 0.1, -0.8],
-        [-0.8, 0.1, -0.8],
-      ].map(([x, y, z], idx) => (
+      {/* 4 Motors & Rotors */}
+      {MOTOR_OFFSETS.map(([x, y, z], idx) => (
         <group key={idx} position={[x, y, z]}>
-          <mesh>
-            <cylinderGeometry args={[0.12, 0.12, 0.18, 12]} />
-            <meshStandardMaterial color="#0f172a" metalness={0.7} />
-          </mesh>
-          <mesh ref={(el) => (rotorsRef.current[idx] = el)} position={[0, 0.12, 0]}>
-            <boxGeometry args={[0.9, 0.02, 0.1]} />
-            <meshStandardMaterial color="#94a3b8" transparent opacity={0.75} roughness={0.5} />
-          </mesh>
+          <mesh geometry={MOTOR_GEOMETRY} material={MOTOR_MATERIAL} />
+          <mesh
+            ref={(el) => (rotorsRef.current[idx] = el)}
+            position={[0, 0.12, 0]}
+            geometry={BLADE_GEOMETRY}
+            material={BLADE_MATERIAL}
+          />
         </group>
       ))}
 
-      {/* Day 16 Deliverable: Cone-of-Vision Sensor Visual */}
+      {/* Cone-of-Vision Sensor Visual */}
       <SensorFrustum
         sensorRange={6.5}
         fovAngleRad={Math.PI / 3.5}
@@ -98,18 +121,17 @@ export default function DroneMesh({
 
       {/* Collision Penalty Danger Volume */}
       {collision && showCollisionDebug && (
-        <mesh>
-          <sphereGeometry args={[2.0, 16, 16]} />
-          <meshBasicMaterial color="#ef4444" wireframe transparent opacity={0.35} />
-        </mesh>
+        <mesh geometry={DANGER_GEOMETRY} material={DANGER_MATERIAL} />
       )}
 
       {/* Selection Target Ring */}
       {isSelected && (
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.2, 0]}>
-          <ringGeometry args={[1.5, 1.65, 32]} />
-          <meshBasicMaterial color="#38bdf8" side={THREE.DoubleSide} />
-        </mesh>
+        <mesh
+          rotation={[-Math.PI / 2, 0, 0]}
+          position={[0, -0.2, 0]}
+          geometry={SELECTION_RING_GEOMETRY}
+          material={SELECTION_MATERIAL}
+        />
       )}
     </group>
   );
