@@ -8,10 +8,9 @@ import {
   WifiOff,
   AlertTriangle,
   ShieldAlert,
-  Activity,
   Maximize2,
-  CheckCircle2,
   Gauge,
+  Scan,
 } from 'lucide-react';
 import CameraRig from './components/CameraRig';
 import Terrain from './components/Terrain';
@@ -31,21 +30,14 @@ function SimulationCanvas() {
         shadow-mapSize-height={2048}
       />
       <hemisphereLight skyColor="#38bdf8" groundColor="#080c14" intensity={0.4} />
-
-      {/* 3D Topographical Map Elevation Mesh */}
       <Terrain size={120} segments={64} />
-
-      {/* Synchronized 50-Agent MARL Telemetry Pipeline */}
       <SwarmPipeline />
-
-      {/* Orbit & Follow Dynamic Camera Rig */}
       <CameraRig />
     </>
   );
 }
 
 export default function App() {
-  // Bind live WebSocket telemetry feed
   const { isConnected } = useSwarmWebSocket('ws://localhost:8765');
 
   const {
@@ -57,6 +49,8 @@ export default function App() {
     totalCollisions,
     showCollisionDebug,
     toggleCollisionDebug,
+    showSensorCones,
+    toggleSensorCones,
     packetCount,
     avgLatencyMs,
     networkJitterMs,
@@ -74,13 +68,12 @@ export default function App() {
         <Radio className="w-5 h-5 text-emerald-400 animate-pulse" />
         <div>
           <h1 className="text-sm font-semibold tracking-wide">SwarmRL Telemetry Viewport</h1>
-          <p className="text-xs text-slate-400">Day 15: Mid-Project Review — Rendering Check Sign-Off</p>
+          <p className="text-xs text-slate-400">Day 16: MAPPO Cone-of-Vision Sensor Visuals</p>
         </div>
       </header>
 
-      {/* Top-Right Metrics & Diagnostic Controls HUD */}
+      {/* Top-Right HUD Controls */}
       <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
-        {/* Stream Status */}
         <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-700/60 px-3 py-2 rounded text-xs text-slate-300">
           {isConnected ? (
             <Wifi className="w-4 h-4 text-emerald-400" />
@@ -90,19 +83,16 @@ export default function App() {
           <span>{isConnected ? `SYNC (${avgLatencyMs}ms / ±${networkJitterMs}ms)` : 'OFFLINE'}</span>
         </div>
 
-        {/* Viewport Frame Rate Profile */}
         <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-700/60 px-3 py-2 rounded text-xs text-slate-300">
           <Gauge className="w-4 h-4 text-emerald-400" />
           <span>FPS: {renderFps}</span>
         </div>
 
-        {/* Swarm Dispersion Metric */}
         <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-700/60 px-3 py-2 rounded text-xs text-slate-300">
           <Maximize2 className="w-4 h-4 text-sky-400" />
           <span>Dispersion: {swarmDispersionRadius}m</span>
         </div>
 
-        {/* Collision Penalty HUD Indicator (-100 pts per collision event) */}
         <div
           className={`flex items-center gap-2 border px-3 py-2 rounded text-xs transition-colors ${
             activeCollisions > 0
@@ -114,13 +104,20 @@ export default function App() {
           <span>Collisions: {totalCollisions}</span>
         </div>
 
-        {/* Milestone 3 Pass Verification Badge */}
-        <div className="flex items-center gap-1.5 bg-emerald-950/70 border border-emerald-600/70 px-3 py-2 rounded text-xs text-emerald-300 shadow">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-          <span>M3 Sign-Off</span>
-        </div>
+        {/* Day 16: Sensor Cone Toggle */}
+        <button
+          onClick={toggleSensorCones}
+          className={`flex items-center gap-1.5 text-xs border px-3 py-2 rounded shadow transition-colors ${
+            showSensorCones
+              ? 'bg-sky-900/50 border-sky-500 text-sky-200'
+              : 'bg-slate-900/80 border-slate-700 text-slate-400'
+          }`}
+        >
+          <Scan className="w-4 h-4 text-sky-400" />
+          Sensors: {showSensorCones ? 'ON' : 'OFF'}
+        </button>
 
-        {/* Debug Wire Toggle */}
+        {/* Collision Debug Wire Toggle */}
         <button
           onClick={toggleCollisionDebug}
           className={`flex items-center gap-1.5 text-xs border px-3 py-2 rounded shadow transition-colors ${
@@ -161,7 +158,6 @@ export default function App() {
         </select>
       </div>
 
-      {/* 3D WebGL Canvas */}
       <Canvas
         camera={{ position: [0, 50, 75], fov: 50, near: 0.1, far: 1000 }}
         gl={{ antialias: true, alpha: false }}

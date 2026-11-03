@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useSwarmStore } from '../store/useSwarmStore';
+import SensorFrustum from './SensorFrustum';
 
 export default function DroneMesh({
   id,
@@ -11,23 +12,14 @@ export default function DroneMesh({
   isSelected = false,
   onSelect,
 }) {
-  const groupRef = useRef();
   const rotorsRef = useRef([]);
   const showCollisionDebug = useSwarmStore((state) => state.showCollisionDebug);
+  const showSensorCones = useSwarmStore((state) => state.showSensorCones);
 
   // Spin rotor blades continuously
   useFrame((_, delta) => {
-    const entry = useSwarmStore.getState().getDroneTelemetry(id);
-    if (entry && groupRef.current) {
-      const alpha = Math.min(1.0, delta * 18);
-      entry.currentPos.lerp(entry.targetPos, alpha);
-      entry.currentRot.slerp(entry.targetRot, alpha);
-      groupRef.current.position.copy(entry.currentPos);
-      groupRef.current.quaternion.copy(entry.currentRot);
-    }
-
     rotorsRef.current.forEach((rotor) => {
-      if (rotor) rotor.rotation.y += delta * 28;
+      if (rotor) rotor.rotation.y += delta * 32;
     });
   });
 
@@ -39,7 +31,7 @@ export default function DroneMesh({
       rotation={[0, yaw, 0]}
       onClick={(e) => {
         e.stopPropagation();
-        onSelect?.(id);
+        onSelect(id);
       }}
     >
       {/* Central Chassis */}
@@ -62,7 +54,7 @@ export default function DroneMesh({
         />
       </mesh>
 
-      {/* Carbon Fiber Motor Arms */}
+      {/* Motor Arms */}
       {[
         [0.8, 0, 0.8, Math.PI / 4],
         [-0.8, 0, 0.8, -Math.PI / 4],
@@ -91,26 +83,24 @@ export default function DroneMesh({
           </mesh>
           <mesh ref={(el) => (rotorsRef.current[idx] = el)} position={[0, 0.12, 0]}>
             <boxGeometry args={[0.9, 0.02, 0.1]} />
-            <meshStandardMaterial
-              color="#94a3b8"
-              transparent
-              opacity={0.75}
-              roughness={0.5}
-            />
+            <meshStandardMaterial color="#94a3b8" transparent opacity={0.75} roughness={0.5} />
           </mesh>
         </group>
       ))}
 
-      {/* Collision Penalty Danger Sphere (2.0m radius debug volume) */}
+      {/* Day 16 Deliverable: Cone-of-Vision Sensor Visual */}
+      <SensorFrustum
+        sensorRange={6.5}
+        fovAngleRad={Math.PI / 3.5}
+        isActive={showSensorCones}
+        isAlert={collision}
+      />
+
+      {/* Collision Penalty Danger Volume */}
       {collision && showCollisionDebug && (
         <mesh>
           <sphereGeometry args={[2.0, 16, 16]} />
-          <meshBasicMaterial
-            color="#ef4444"
-            wireframe
-            transparent
-            opacity={0.4}
-          />
+          <meshBasicMaterial color="#ef4444" wireframe transparent opacity={0.35} />
         </mesh>
       )}
 

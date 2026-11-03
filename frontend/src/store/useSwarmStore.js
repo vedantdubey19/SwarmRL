@@ -7,6 +7,7 @@ export const useSwarmStore = create((set) => ({
   selectedDroneId: null,
   cameraMode: 'orbit', // 'orbit' | 'follow'
   showCollisionDebug: true,
+  showSensorCones: true, // Day 16: Sensor cone visibility toggle
   totalCollisions: 0,
   packetCount: 0,
   avgLatencyMs: 0,
@@ -19,7 +20,6 @@ export const useSwarmStore = create((set) => ({
       const { validNodes, avgJitter } = globalTelemetryBridge.processBatch(rawBatch);
       if (validNodes.length === 0) return {};
 
-      // Push coordinates to the spatial interpolation buffer
       globalSyncBuffer.pushBatch(validNodes);
 
       const updated = { ...state.drones };
@@ -67,4 +67,6 @@ export const useSwarmStore = create((set) => ({
   setCameraMode: (mode) => set({ cameraMode: mode }),
   toggleCollisionDebug: () =>
     set((state) => ({ showCollisionDebug: !state.showCollisionDebug })),
+  toggleSensorCones: () =>
+    set((state) => ({ showSensorCones: !state.showSensorCones })),
 }));
