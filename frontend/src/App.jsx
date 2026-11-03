@@ -11,10 +11,13 @@ import {
   Maximize2,
   Gauge,
   Scan,
+  Compass,
+  Paintbrush,
 } from 'lucide-react';
 import CameraRig from './components/CameraRig';
 import Terrain from './components/Terrain';
 import SwarmPipeline from './components/SwarmPipeline';
+import GroundPainter from './components/GroundPainter';
 import { useSwarmStore } from './store/useSwarmStore';
 import { useSwarmWebSocket } from './hooks/useSwarmWebSocket';
 
@@ -30,8 +33,16 @@ function SimulationCanvas() {
         shadow-mapSize-height={2048}
       />
       <hemisphereLight skyColor="#38bdf8" groundColor="#080c14" intensity={0.4} />
+
+      {/* 3D Topographical Map */}
       <Terrain size={120} segments={64} />
+
+      {/* Day 18: Dynamic Ground-Painted Explored Grid */}
+      <GroundPainter />
+
+      {/* 50 Dynamic Agents */}
       <SwarmPipeline />
+
       <CameraRig />
     </>
   );
@@ -51,7 +62,9 @@ export default function App() {
     toggleCollisionDebug,
     showSensorCones,
     toggleSensorCones,
-    packetCount,
+    showGroundPainting,
+    toggleGroundPainting,
+    coveragePercentage,
     avgLatencyMs,
     networkJitterMs,
     swarmDispersionRadius,
@@ -63,16 +76,16 @@ export default function App() {
 
   return (
     <div className="relative w-screen h-screen select-none bg-[#080c14] overflow-hidden">
-      
-    {/* Top-Left Telemetry Header HUD */}
+      {/* Top Left Header */}
       <header className="absolute top-4 left-4 z-10 flex items-center gap-3 bg-slate-900/90 backdrop-blur border border-slate-700/60 px-4 py-2.5 rounded-lg text-white shadow-xl">
         <Radio className="w-5 h-5 text-emerald-400 animate-pulse" />
         <div>
           <h1 className="text-sm font-semibold tracking-wide">SwarmRL Telemetry Viewport</h1>
-          <p className="text-xs text-slate-400">Day 17: Swarm Rendering Optimization & Shared Geometries</p>
+          <p className="text-xs text-slate-400">Day 18: Ground-Painting Search Perception (MAPPO)</p>
         </div>
       </header>
-      {/* Top-Right HUD Controls */}
+
+      {/* Top Right HUD Controls & Metrics */}
       <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
         <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-700/60 px-3 py-2 rounded text-xs text-slate-300">
           {isConnected ? (
@@ -88,23 +101,32 @@ export default function App() {
           <span>FPS: {renderFps}</span>
         </div>
 
+        {/* Coverage Percentage Badge */}
+        <div className="flex items-center gap-2 bg-sky-950/80 border border-sky-600/70 px-3 py-2 rounded text-xs text-sky-300">
+          <Compass className="w-4 h-4 text-sky-400" />
+          <span>Area Covered: {coveragePercentage}%</span>
+        </div>
+
+        {/* Swarm Dispersion */}
         <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-700/60 px-3 py-2 rounded text-xs text-slate-300">
           <Maximize2 className="w-4 h-4 text-sky-400" />
           <span>Dispersion: {swarmDispersionRadius}m</span>
         </div>
 
-        <div
-          className={`flex items-center gap-2 border px-3 py-2 rounded text-xs transition-colors ${
-            activeCollisions > 0
-              ? 'bg-rose-950/80 border-rose-500 text-rose-300 animate-pulse'
-              : 'bg-slate-900/80 border-slate-700/60 text-slate-300'
+        {/* Ground Painting Toggle */}
+        <button
+          onClick={toggleGroundPainting}
+          className={`flex items-center gap-1.5 text-xs border px-3 py-2 rounded shadow transition-colors ${
+            showGroundPainting
+              ? 'bg-sky-900/50 border-sky-500 text-sky-200'
+              : 'bg-slate-900/80 border-slate-700 text-slate-400'
           }`}
         >
-          <AlertTriangle className="w-4 h-4 text-rose-400" />
-          <span>Collisions: {totalCollisions}</span>
-        </div>
+          <Paintbrush className="w-4 h-4" />
+          Heatmap: {showGroundPainting ? 'ON' : 'OFF'}
+        </button>
 
-        {/* Day 16: Sensor Cone Toggle */}
+        {/* Sensor Cones Toggle */}
         <button
           onClick={toggleSensorCones}
           className={`flex items-center gap-1.5 text-xs border px-3 py-2 rounded shadow transition-colors ${
