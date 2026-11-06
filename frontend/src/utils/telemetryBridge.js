@@ -1,8 +1,3 @@
-/**
- * SwarmRL Real-Data Ingestion Bridge (Day 11)
- * Normalizes, validates, and de-skews high-frequency RL telemetry batches.
- */
-
 export class TelemetryBridge {
   constructor(options = {}) {
     this.maxHistory = options.maxHistory || 100;
@@ -10,9 +5,6 @@ export class TelemetryBridge {
     this.jitterSamples = [];
   }
 
-  /**
-   * Sanitizes raw RL inference state dictionaries into clean render nodes.
-   */
   normalizeAgentState(raw) {
     if (!raw || typeof raw !== 'object') return null;
 
@@ -39,18 +31,15 @@ export class TelemetryBridge {
     };
   }
 
-  /**
-   * Ingests a raw network batch, cleans entries, and computes jitter.
-   */
   processBatch(rawBatch) {
-    if (!Array.isArray(rawBatch)) return { validNodes: [], jitterMs: 0 };
+    if (!Array.isArray(rawBatch)) return { validNodes: [], avgJitter: 0 };
 
     const now = Date.now();
     let jitter = 0;
 
     if (this.lastPacketTimestamp > 0) {
       const delta = now - this.lastPacketTimestamp;
-      jitter = Math.abs(delta - 50); // Delta relative to expected 20Hz (50ms) interval
+      jitter = Math.abs(delta - 50); // Offset from expected 20Hz interval
       this.jitterSamples.push(jitter);
       if (this.jitterSamples.length > this.maxHistory) {
         this.jitterSamples.shift();

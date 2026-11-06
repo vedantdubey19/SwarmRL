@@ -47,7 +47,6 @@ export default function DroneMesh({
   const showCollisionDebug = useSwarmStore((state) => state.showCollisionDebug);
   const showSensorCones = useSwarmStore((state) => state.showSensorCones);
 
-  // High-performance rotor blade rotation
   useFrame((_, delta) => {
     const rotationDelta = delta * 32;
     for (let i = 0; i < 4; i++) {
@@ -74,7 +73,6 @@ export default function DroneMesh({
         onSelect(id);
       }}
     >
-      {/* Central Chassis */}
       <mesh
         castShadow
         receiveShadow
@@ -82,7 +80,6 @@ export default function DroneMesh({
         material={chassisMaterial}
       />
 
-      {/* Center Status LED */}
       <mesh position={[0, 0.16, 0]} geometry={LED_GEOMETRY}>
         <meshStandardMaterial
           color={statusColor}
@@ -91,14 +88,12 @@ export default function DroneMesh({
         />
       </mesh>
 
-      {/* 4 Diagonal Arms (Shared Geometries & Materials) */}
       {ARM_OFFSETS.map(([x, y, z, rot], idx) => (
         <group key={idx} position={[x * 0.5, y, z * 0.5]} rotation={[0, rot, 0]}>
           <mesh geometry={ARM_GEOMETRY} material={ARM_MATERIAL} />
         </group>
       ))}
 
-      {/* 4 Motors & Rotors */}
       {MOTOR_OFFSETS.map(([x, y, z], idx) => (
         <group key={idx} position={[x, y, z]}>
           <mesh geometry={MOTOR_GEOMETRY} material={MOTOR_MATERIAL} />
@@ -111,7 +106,6 @@ export default function DroneMesh({
         </group>
       ))}
 
-      {/* Cone-of-Vision Sensor Visual */}
       <SensorFrustum
         sensorRange={6.5}
         fovAngleRad={Math.PI / 3.5}
@@ -119,12 +113,10 @@ export default function DroneMesh({
         isAlert={collision}
       />
 
-      {/* Collision Penalty Danger Volume */}
       {collision && showCollisionDebug && (
         <mesh geometry={DANGER_GEOMETRY} material={DANGER_MATERIAL} />
       )}
 
-      {/* Selection Target Ring */}
       {isSelected && (
         <mesh
           rotation={[-Math.PI / 2, 0, 0]}

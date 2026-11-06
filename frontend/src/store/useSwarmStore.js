@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { globalTelemetryBridge } from '../utils/telemetryBridge';
 import { globalSyncBuffer } from '../utils/syncBuffer';
 
-const GRID_SIZE = 60; // 60x60 grid resolution over 120m world bounds (2m cells)
+const GRID_SIZE = 60;
 const CELL_WORLD_SIZE = 2.0;
 const HALF_BOUNDS = 60;
 
@@ -12,7 +12,7 @@ export const useSwarmStore = create((set, get) => ({
   cameraMode: 'orbit',
   showCollisionDebug: true,
   showSensorCones: true,
-  showGroundPainting: true, // Day 18 toggle
+  showGroundPainting: true,
   totalCollisions: 0,
   packetCount: 0,
   avgLatencyMs: 0,
@@ -20,7 +20,6 @@ export const useSwarmStore = create((set, get) => ({
   swarmDispersionRadius: 0,
   renderFps: 60,
 
-  // Set of explored cell indices ("x_z")
   exploredCells: new Set(),
   coveragePercentage: 0,
 
@@ -38,9 +37,8 @@ export const useSwarmStore = create((set, get) => ({
       let sumZ = 0;
       const now = Date.now();
 
-      // Paint ground beneath active drones
       const newExplored = new Set(state.exploredCells);
-      const sensorRadiusCells = 2; // ~4m ground footprint
+      const sensorRadiusCells = 2;
 
       validNodes.forEach((agent) => {
         updated[agent.id] = agent;
@@ -49,7 +47,6 @@ export const useSwarmStore = create((set, get) => ({
         sumX += agent.x;
         sumZ += agent.z;
 
-        // Discretize agent world coordinates into grid indices
         const gridX = Math.floor((agent.x + HALF_BOUNDS) / CELL_WORLD_SIZE);
         const gridZ = Math.floor((agent.z + HALF_BOUNDS) / CELL_WORLD_SIZE);
 
@@ -79,7 +76,10 @@ export const useSwarmStore = create((set, get) => ({
       });
 
       const totalGridCells = GRID_SIZE * GRID_SIZE;
-      const coverage = Math.min(100, Number(((newExplored.size / totalGridCells) * 100).toFixed(1)));
+      const coverage = Math.min(
+        100,
+        Number(((newExplored.size / totalGridCells) * 100).toFixed(1))
+      );
 
       return {
         drones: updated,
@@ -96,7 +96,10 @@ export const useSwarmStore = create((set, get) => ({
   setRenderFps: (fps) => set({ renderFps: fps }),
   setSelectedDroneId: (id) => set({ selectedDroneId: id }),
   setCameraMode: (mode) => set({ cameraMode: mode }),
-  toggleCollisionDebug: () => set((state) => ({ showCollisionDebug: !state.showCollisionDebug })),
-  toggleSensorCones: () => set((state) => ({ showSensorCones: !state.showSensorCones })),
-  toggleGroundPainting: () => set((state) => ({ showGroundPainting: !state.showGroundPainting })),
+  toggleCollisionDebug: () =>
+    set((state) => ({ showCollisionDebug: !state.showCollisionDebug })),
+  toggleSensorCones: () =>
+    set((state) => ({ showSensorCones: !state.showSensorCones })),
+  toggleGroundPainting: () =>
+    set((state) => ({ showGroundPainting: !state.showGroundPainting })),
 }));

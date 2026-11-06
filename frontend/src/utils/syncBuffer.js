@@ -1,8 +1,5 @@
 import * as THREE from 'three';
 
-/**
- * Normalizes an angle into (-PI, PI] for shortest-path angular lerping.
- */
 function normalizeAngle(angle) {
   let a = angle % (Math.PI * 2);
   if (a > Math.PI) a -= Math.PI * 2;
@@ -54,16 +51,13 @@ export class SwarmSyncBuffer {
     if (!target) return null;
     if (!prev) return target;
 
-    // Strict clamping of alpha between [0.0, 1.0] to prevent extrapolation slingshots
     const elapsed = performance.now() - this.lastPacketTime;
     const alpha = Math.min(Math.max(elapsed / this.tickInterval, 0.0), 1.0);
 
-    // Linear spatial lerp
     const x = THREE.MathUtils.lerp(prev.x, target.x, alpha);
     const y = THREE.MathUtils.lerp(prev.y, target.y, alpha);
     const z = THREE.MathUtils.lerp(prev.z, target.z, alpha);
 
-    // Shortest-arc angular lerp (prevents 360-degree flip glitch on boundary wraps)
     const prevYaw = normalizeAngle(prev.yaw);
     const targetYaw = normalizeAngle(target.yaw);
     const yaw = THREE.MathUtils.lerpAngle(prevYaw, targetYaw, alpha);

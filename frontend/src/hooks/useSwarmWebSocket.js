@@ -18,7 +18,7 @@ export function useSwarmWebSocket(url = 'ws://localhost:8765') {
       socketRef.current = ws;
 
       ws.onopen = () => {
-        console.log('[SwarmRL Live Stream] Connected to real telemetry feed:', url);
+        console.log('[SwarmRL Live Stream] Connected to telemetry feed:', url);
         setIsConnected(true);
         setReconnectAttempts(0);
       };
@@ -34,9 +34,10 @@ export function useSwarmWebSocket(url = 'ws://localhost:8765') {
 
       ws.onclose = (event) => {
         setIsConnected(false);
-        // Exponential backoff with a 5-second cap
         const timeout = Math.min(1000 * Math.pow(1.5, reconnectAttempts), 5000);
-        console.warn(`[SwarmRL Live Stream] Disconnected (Code: ${event.code}). Retrying in ${Math.round(timeout)}ms...`);
+        console.warn(
+          `[SwarmRL Live Stream] Disconnected (Code: ${event.code}). Retrying in ${Math.round(timeout)}ms...`
+        );
         reconnectTimeoutRef.current = setTimeout(() => {
           setReconnectAttempts((prev) => prev + 1);
           connect();

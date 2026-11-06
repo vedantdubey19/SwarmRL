@@ -2,11 +2,9 @@ import React, { useMemo } from 'react';
 import * as THREE from 'three';
 import { useSwarmStore } from '../store/useSwarmStore';
 
-const GRID_SIZE = 60;
 const CELL_WORLD_SIZE = 2.0;
 const HALF_BOUNDS = 60;
 
-// Procedural elevation math matching Terrain.jsx
 const getElevation = (x, z) =>
   Math.sin(x * 0.08) * Math.cos(z * 0.08) * 3.5 +
   Math.sin(x * 0.03 + 1.2) * Math.cos(z * 0.03 + 0.8) * 4.0;
@@ -21,7 +19,7 @@ export default function GroundPainter() {
       const [cx, cz] = key.split('_').map(Number);
       const worldX = cx * CELL_WORLD_SIZE - HALF_BOUNDS + CELL_WORLD_SIZE / 2;
       const worldZ = cz * CELL_WORLD_SIZE - HALF_BOUNDS + CELL_WORLD_SIZE / 2;
-      const worldY = getElevation(worldX, worldZ) + 0.08; // Slight Y-offset above terrain to prevent z-fighting
+      const worldY = getElevation(worldX, worldZ) + 0.08;
       coords.push([worldX, worldY, worldZ]);
     });
     return coords;

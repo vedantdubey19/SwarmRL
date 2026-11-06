@@ -17,7 +17,7 @@ import {
 import CameraRig from './components/CameraRig';
 import Terrain from './components/Terrain';
 import SwarmPipeline from './components/SwarmPipeline';
-import GroundPainter from './components/GroundPainter';
+import ExploredAreaMesh from './components/ExploredAreaMesh';
 import { useSwarmStore } from './store/useSwarmStore';
 import { useSwarmWebSocket } from './hooks/useSwarmWebSocket';
 
@@ -37,12 +37,13 @@ function SimulationCanvas() {
       {/* 3D Topographical Map */}
       <Terrain size={120} segments={64} />
 
-      {/* Day 18: Dynamic Ground-Painted Explored Grid */}
-      <GroundPainter />
+      {/* Instanced Explored Footprint Mesh */}
+      <ExploredAreaMesh />
 
-      {/* 50 Dynamic Agents */}
+      {/* Synchronized 50-Agent MARL Telemetry Pipeline */}
       <SwarmPipeline />
 
+      {/* Orbit & Follow Dynamic Camera Rig */}
       <CameraRig />
     </>
   );
@@ -76,16 +77,16 @@ export default function App() {
 
   return (
     <div className="relative w-screen h-screen select-none bg-[#080c14] overflow-hidden">
-      {/* Top Left Header */}
+      {/* Header HUD */}
       <header className="absolute top-4 left-4 z-10 flex items-center gap-3 bg-slate-900/90 backdrop-blur border border-slate-700/60 px-4 py-2.5 rounded-lg text-white shadow-xl">
         <Radio className="w-5 h-5 text-emerald-400 animate-pulse" />
         <div>
           <h1 className="text-sm font-semibold tracking-wide">SwarmRL Telemetry Viewport</h1>
-          <p className="text-xs text-slate-400">Day 18: Ground-Painting Search Perception (MAPPO)</p>
+          <p className="text-xs text-slate-400">50-Agent Real-Time Search & Rescue Simulation</p>
         </div>
       </header>
 
-      {/* Top Right HUD Controls & Metrics */}
+      {/* Diagnostics HUD Controls */}
       <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
         <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-700/60 px-3 py-2 rounded text-xs text-slate-300">
           {isConnected ? (
@@ -101,19 +102,27 @@ export default function App() {
           <span>FPS: {renderFps}</span>
         </div>
 
-        {/* Coverage Percentage Badge */}
         <div className="flex items-center gap-2 bg-sky-950/80 border border-sky-600/70 px-3 py-2 rounded text-xs text-sky-300">
           <Compass className="w-4 h-4 text-sky-400" />
-          <span>Area Covered: {coveragePercentage}%</span>
+          <span>Covered: {coveragePercentage}%</span>
         </div>
 
-        {/* Swarm Dispersion */}
         <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-700/60 px-3 py-2 rounded text-xs text-slate-300">
           <Maximize2 className="w-4 h-4 text-sky-400" />
           <span>Dispersion: {swarmDispersionRadius}m</span>
         </div>
 
-        {/* Ground Painting Toggle */}
+        <div
+          className={`flex items-center gap-2 border px-3 py-2 rounded text-xs transition-colors ${
+            activeCollisions > 0
+              ? 'bg-rose-950/80 border-rose-500 text-rose-300 animate-pulse'
+              : 'bg-slate-900/80 border-slate-700/60 text-slate-300'
+          }`}
+        >
+          <AlertTriangle className="w-4 h-4 text-rose-400" />
+          <span>Collisions: {totalCollisions}</span>
+        </div>
+
         <button
           onClick={toggleGroundPainting}
           className={`flex items-center gap-1.5 text-xs border px-3 py-2 rounded shadow transition-colors ${
@@ -126,7 +135,6 @@ export default function App() {
           Heatmap: {showGroundPainting ? 'ON' : 'OFF'}
         </button>
 
-        {/* Sensor Cones Toggle */}
         <button
           onClick={toggleSensorCones}
           className={`flex items-center gap-1.5 text-xs border px-3 py-2 rounded shadow transition-colors ${
@@ -139,7 +147,6 @@ export default function App() {
           Sensors: {showSensorCones ? 'ON' : 'OFF'}
         </button>
 
-        {/* Collision Debug Wire Toggle */}
         <button
           onClick={toggleCollisionDebug}
           className={`flex items-center gap-1.5 text-xs border px-3 py-2 rounded shadow transition-colors ${
@@ -152,7 +159,6 @@ export default function App() {
           Debug: {showCollisionDebug ? 'ON' : 'OFF'}
         </button>
 
-        {/* Camera Perspective Mode Toggle */}
         <button
           onClick={() => setCameraMode(cameraMode === 'orbit' ? 'follow' : 'orbit')}
           className="flex items-center gap-2 bg-slate-900/80 hover:bg-slate-800 text-xs text-slate-200 border border-slate-700 px-3 py-2 rounded shadow transition-colors"
@@ -180,6 +186,7 @@ export default function App() {
         </select>
       </div>
 
+      {/* Canvas */}
       <Canvas
         camera={{ position: [0, 50, 75], fov: 50, near: 0.1, far: 1000 }}
         gl={{ antialias: true, alpha: false }}

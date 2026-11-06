@@ -2,8 +2,8 @@ import React, { useMemo } from 'react';
 import * as THREE from 'three';
 
 export default function SensorFrustum({
-  sensorRange = 7.0,
-  fovAngleRad = Math.PI / 4, // 45-degree field of view
+  sensorRange = 6.5,
+  fovAngleRad = Math.PI / 3.5,
   isActive = true,
   isAlert = false,
 }) {
@@ -11,7 +11,6 @@ export default function SensorFrustum({
     const radius = Math.tan(fovAngleRad / 2) * sensorRange;
     const coneGeo = new THREE.ConeGeometry(radius, sensorRange, 24, 1, true);
 
-    // Rotate so the cone projects downward (-Y axis) from the drone origin
     coneGeo.rotateX(Math.PI);
     coneGeo.translate(0, -sensorRange / 2, 0);
 
@@ -26,7 +25,6 @@ export default function SensorFrustum({
 
   return (
     <group>
-      {/* Volumetric Sensor Beam (Translucent) */}
       <mesh geometry={geometry}>
         <meshBasicMaterial
           color={coneColor}
@@ -37,7 +35,6 @@ export default function SensorFrustum({
         />
       </mesh>
 
-      {/* Frustum Edge Contours */}
       <lineSegments geometry={edgesGeometry}>
         <lineBasicMaterial
           color={isAlert ? '#f87171' : '#38bdf8'}
@@ -46,11 +43,7 @@ export default function SensorFrustum({
         />
       </lineSegments>
 
-      {/* Ground Projection Footprint Ring */}
-      <mesh
-        position={[0, -sensorRange, 0]}
-        rotation={[-Math.PI / 2, 0, 0]}
-      >
+      <mesh position={[0, -sensorRange, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[groundRingRadius * 0.92, groundRingRadius, 32]} />
         <meshBasicMaterial
           color={isAlert ? '#ef4444' : '#38bdf8'}
